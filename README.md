@@ -94,3 +94,4 @@ proof-that-it-all-works dashboard page. The actual VPlanner interface
 (workspace switcher, project pipeline UI, calendar, editor review tool,
 etc.) gets built next, on top of this — and on top of a proper design
 system pass, since the current styling is placeholder only.
+# vplanner
