@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # VPlanner
 
 Internal content-production dashboard. First module: long-form YouTube video
@@ -96,3 +97,6 @@ etc.) gets built next, on top of this — and on top of a proper design
 system pass, since the current styling is placeholder only.
 # vplanner
 # vplanner
+=======
+This is the start.
+>>>>>>> c9a5e42acf72844e35a1c6444e40e6e4e0563854
