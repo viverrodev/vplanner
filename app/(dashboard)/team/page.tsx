@@ -10,11 +10,12 @@ import { TeamNameEditor } from "./team-name-editor";
 import { InviteForm } from "./invite-form";
 import { MemberManager, type MemberRow } from "./member-manager";
 import { RoleColorPicker } from "./role-color-picker";
+import { YouTubeIcon, TikTokIcon, InstagramIcon, FacebookIcon } from "@/components/ui/platform-icons";
 
 const PLATFORMS = [
-  { id: "youtube", name: "YouTube", color: "#FF0000" },
-  { id: "tiktok", name: "TikTok", color: "#111111" },
-  { id: "meta", name: "Instagram & Facebook", color: "#0866FF" },
+  { id: "youtube", name: "YouTube" },
+  { id: "tiktok", name: "TikTok" },
+  { id: "meta", name: "Instagram & Facebook" },
 ] as const;
 
 export default async function TeamPage() {
@@ -65,7 +66,7 @@ export default async function TeamPage() {
 
       {/* Workspace branding */}
       <section className="rounded-xl border border-line/10 bg-surface p-6">
-        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-faint mb-4">
+        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-4">
           Workspace
         </h2>
         <div className="mb-4">
@@ -85,7 +86,7 @@ export default async function TeamPage() {
 
       {/* Members */}
       <section className="rounded-xl border border-line/10 bg-surface p-6">
-        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-faint mb-4">
+        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-4">
           Members ({memberRows.length})
         </h2>
         <div>
@@ -119,10 +120,10 @@ export default async function TeamPage() {
 
       {/* Role colors */}
       <section className="rounded-xl border border-line/10 bg-surface p-6">
-        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-faint mb-1">
+        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-1">
           Role colors
         </h2>
-        <p className="text-[12px] text-ink-faint mb-4">
+        <p className="text-[12px] text-ink-soft mb-4">
           Used for role badges, @mentions, and everywhere a role shows up.
         </p>
         {userIsMaster ? (
@@ -141,10 +142,10 @@ export default async function TeamPage() {
 
       {/* Social connections */}
       <section className="rounded-xl border border-line/10 bg-surface p-6">
-        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-faint mb-1">
+        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-1">
           Connected accounts
         </h2>
-        <p className="text-[12px] text-ink-faint mb-4">
+        <p className="text-[12px] text-ink-soft mb-4">
           For publishing directly from VPlanner later. Each of these needs a
           developer app registered with that platform before a real
           &ldquo;Connect&rdquo; button can work — not something we can turn
@@ -159,11 +160,15 @@ export default async function TeamPage() {
                 key={p.id}
                 className="flex items-center gap-3 rounded-lg border border-line/10 px-3.5 py-3"
               >
-                <span
-                  className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-white text-[11px] font-bold"
-                  style={{ background: p.color }}
-                >
-                  {p.name[0]}
+                <span className="flex items-center gap-1 flex-shrink-0">
+                  {p.id === "youtube" && <YouTubeIcon className="w-8 h-8" />}
+                  {p.id === "tiktok" && <TikTokIcon className="w-8 h-8" />}
+                  {p.id === "meta" && (
+                    <>
+                      <InstagramIcon className="w-8 h-8" />
+                      <FacebookIcon className="w-8 h-8" />
+                    </>
+                  )}
                 </span>
                 <span className="text-[13px] font-semibold flex-1">{p.name}</span>
                 <span className="text-[11px] font-bold uppercase tracking-wide text-ink-faint bg-surface-2 px-2 py-1 rounded-full">

@@ -59,7 +59,7 @@ export default async function ProjectDetailPage({
   const currentUser = await getCachedUser();
   const userIsMaster = isMaster(membership?.roles ?? []);
 
-  const [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }] =
+  const [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }, { data: attachmentRows }] =
     await Promise.all([
       supabase
         .from("project_titles")
@@ -85,6 +85,10 @@ export default async function ProjectDetailPage({
         .select("id, storage_path, position")
         .eq("project_id", id)
         .order("position"),
+      supabase
+        .from("comment_attachments")
+        .select("id, comment_id, file_name, file_path, file_size, mime_type, project_comments!inner(project_id)")
+        .eq("project_comments.project_id", id),
     ]);
 
   const roleColors = await getRoleColors(supabase, currentTeam.id);
@@ -115,6 +119,19 @@ export default async function ProjectDetailPage({
   );
 
   const thumbnailBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/`;
+  const attachmentBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/comment-attachments/`;
+  const attachmentsByCommentId = new Map<string, { id: string; name: string; url: string; size: number; mimeType: string }[]>();
+  (attachmentRows ?? []).forEach((a) => {
+    const list = attachmentsByCommentId.get(a.comment_id) ?? [];
+    list.push({
+      id: a.id,
+      name: a.file_name,
+      url: attachmentBase + a.file_path,
+      size: a.file_size,
+      mimeType: a.mime_type,
+    });
+    attachmentsByCommentId.set(a.comment_id, list);
+  });
   const thumbnails = (thumbnailRows ?? []).map((t) => ({
     id: t.id,
     path: t.storage_path,
@@ -375,6 +392,7 @@ export default async function ProjectDetailPage({
               createdAt: c.created_at,
               body: c.body,
               canDelete: userIsMaster || c.author_id === currentUser?.id,
+              attachments: attachmentsByCommentId.get(c.id) ?? [],
             };
           })}
           canComment={canComment}

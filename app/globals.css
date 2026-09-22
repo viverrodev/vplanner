@@ -60,6 +60,24 @@ body {
   display: none;
 }
 
+.styled-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--amber) / 0.55) transparent;
+}
+.styled-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+.styled-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.styled-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--amber) / 0.45);
+  border-radius: 8px;
+}
+.styled-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--amber) / 0.75);
+}
+
 @keyframes toastin {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

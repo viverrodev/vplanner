@@ -10,6 +10,7 @@ export type TeamSummary = {
   name: string;
   slug: string;
   color: string;
+  logoUrl: string | null;
 };
 
 /**
@@ -29,7 +30,7 @@ export const getTeamsAndCurrent = cache(async (supabase: SupabaseClient) => {
 
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, slug, color, team_members!inner(user_id, status)")
+    .select("id, name, slug, color, logo_url, team_members!inner(user_id, status)")
     .eq("team_members.user_id", user.id)
     .eq("team_members.status", "active")
     .order("created_at", { ascending: true });
@@ -39,6 +40,7 @@ export const getTeamsAndCurrent = cache(async (supabase: SupabaseClient) => {
     name: t.name,
     slug: t.slug,
     color: t.color,
+    logoUrl: t.logo_url,
   }));
 
   if (list.length === 0) return { teams: list, currentTeam: null };

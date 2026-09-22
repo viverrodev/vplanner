@@ -288,7 +288,9 @@ export async function postComment(
   formData: FormData
 ) {
   const body = String(formData.get("body") ?? "").trim();
-  if (!body) return;
+  const attachmentsRawForCheck = String(formData.get("attachments") ?? "[]");
+  const hasAttachments = attachmentsRawForCheck !== "[]" && attachmentsRawForCheck !== "";
+  if (!body && !hasAttachments) return;
 
   const supabase = await createClient();
   const {
@@ -303,13 +305,40 @@ export async function postComment(
     .single();
   if (!project) return;
 
-  const { error } = await supabase.from("project_comments").insert({
-    project_id: projectId,
-    stage,
-    author_id: user.id,
-    body,
-  });
-  if (error) return;
+  const { data: newComment, error } = await supabase
+    .from("project_comments")
+    .insert({
+      project_id: projectId,
+      stage,
+      author_id: user.id,
+      body,
+    })
+    .select("id")
+    .single();
+  if (error || !newComment) return;
+
+  const attachmentsRaw = String(formData.get("attachments") ?? "[]");
+  try {
+    const attachments = JSON.parse(attachmentsRaw) as {
+      name: string;
+      path: string;
+      size: number;
+      type: string;
+    }[];
+    if (attachments.length > 0) {
+      await supabase.from("comment_attachments").insert(
+        attachments.map((a) => ({
+          comment_id: newComment.id,
+          file_name: a.name,
+          file_path: a.path,
+          file_size: a.size,
+          mime_type: a.type,
+        }))
+      );
+    }
+  } catch {
+    // Malformed attachments payload — the comment itself still posted fine.
+  }
 
   // Resolve @mentions (@name, @RoleName, @all) into real notifications.
   const [{ data: teamMembers }, { data: authorProfile }] = await Promise.all([

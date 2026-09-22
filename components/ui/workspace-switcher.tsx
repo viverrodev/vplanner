@@ -14,6 +14,27 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function TeamAvatar({ team, size }: { team: TeamSummary; size: "sm" | "md" }) {
+  const dim = size === "sm" ? "w-5 h-5" : "w-7 h-7";
+  const text = size === "sm" ? "text-[9px]" : "text-[11px]";
+  if (team.logoUrl) {
+    return (
+      <span className={`${dim} rounded-md overflow-hidden flex-shrink-0`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={team.logoUrl} alt="" className="w-full h-full object-cover" />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`${dim} rounded-md flex items-center justify-center ${text} font-bold text-white flex-shrink-0`}
+      style={{ background: team.color }}
+    >
+      {initials(team.name)}
+    </span>
+  );
+}
+
 export function WorkspaceSwitcher({
   teams,
   currentTeam,
@@ -41,12 +62,7 @@ export function WorkspaceSwitcher({
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2.5 rounded-lg border border-line/10 bg-surface-2 px-2.5 py-2 text-left hover:border-line/20 transition-colors"
       >
-        <span
-          className="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-          style={{ background: currentTeam.color }}
-        >
-          {initials(currentTeam.name)}
-        </span>
+        <TeamAvatar team={currentTeam} size="md" />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-semibold truncate">
             {currentTeam.name}
@@ -68,12 +84,7 @@ export function WorkspaceSwitcher({
               }}
               className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
             >
-              <span
-                className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                style={{ background: t.color }}
-              >
-                {initials(t.name)}
-              </span>
+              <TeamAvatar team={t} size="sm" />
               <span className="text-[13px] font-medium flex-1 truncate">
                 {t.name}
               </span>

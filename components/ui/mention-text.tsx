@@ -22,7 +22,7 @@ export function MentionText({
     const label = m.target.kind === "all" ? "all" : m.target.label;
     const color =
       m.target.kind === "all"
-        ? "rgb(var(--amber))"
+        ? "rgb(var(--red))"
         : m.target.kind === "role"
         ? roleColors[m.target.roleId]
         : colorForId(m.target.userId);
