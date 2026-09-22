@@ -3,36 +3,72 @@
 @tailwind utilities;
 
 /*
-  Baseline tokens only — matches the prototype's palette so the app is
-  coherent to work in, but this gets a full design pass (type scale,
-  motion, final palette) before we build the real screens.
+  VPlanner design system — v1.
+  Warm, editorial, "production office" rather than generic SaaS:
+  a serif for anything titled/named, a plain sans for everything
+  functional, and mono reserved for genuinely sequential data
+  (stage numbers, dates, review timestamps).
 */
 :root {
-  --paper: 238 240 236;
-  --ink: 21 26 22;
+  --paper: 237 238 231;    /* cool bone, not cream */
+  --paper-2: 229 230 221;
+  --ink: 20 17 12;         /* warm near-black */
+  --ink-soft: 96 90 78;
+  --ink-faint: 150 143 128;
   --surface: 255 255 255;
-  --amber: 232 99 13;
-  --teal: 23 140 124;
-  --blue: 49 89 201;
-  --violet: 107 79 214;
-  --pink: 184 64 112;
-  --gold: 180 137 14;
-  --green: 46 158 91;
-  --red: 217 59 74;
+  --surface-2: 247 246 240;
+  --line: 20 17 12;
 
-  --font-display: "Inter", sans-serif;
-  --font-body: "Inter", sans-serif;
-  --font-mono: ui-monospace, monospace;
+  --amber: 232 99 13;      /* the one accent — used sparingly, on purpose */
+  --teal: 21 130 115;
+  --blue: 47 86 194;
+  --violet: 103 76 209;
+  --pink: 178 61 107;
+  --gold: 173 131 13;
+  --green: 43 151 87;
+  --red: 208 56 70;
+  --coral: 224 90 64;
+  /* --font-display / --font-body / --font-mono are provided by next/font
+     via the className on <html> in app/layout.tsx — not redefined here,
+     so there's a single source of truth instead of two competing ones. */
 }
 
 .dark {
-  --paper: 18 16 13;
-  --ink: 243 239 231;
-  --surface: 29 25 19;
-  --amber: 255 138 46;
+  --paper: 18 15 11;
+  --paper-2: 26 22 16;
+  --ink: 240 236 227;
+  --ink-soft: 176 166 149;
+  --ink-faint: 118 109 94;
+  --surface: 28 24 17;
+  --surface-2: 34 29 20;
+  --line: 240 236 227;
+  /* Accent/stage colors are NOT redefined here on purpose — they stay
+     identical to :root in both themes. Only structural tokens
+     (background/text/surface) actually need to invert for dark mode. */
 }
 
 body {
   background: rgb(var(--paper));
   color: rgb(var(--ink));
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes toastin {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes modalin {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+::selection {
+  background: rgb(var(--amber) / 0.2);
 }

@@ -1,0 +1,278 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { STAGE_ORDER, STAGE_LABELS } from "@/modules/long-videos/lib/stages";
+import type { PipelineStage } from "@/lib/permissions/roles";
+import { getMembership, canActOnStage } from "@/lib/permissions/membership";
+import { isMaster } from "@/lib/permissions/roles";
+
+export async function updateExpectedDate(
+  projectId: string,
+  teamId: string,
+  date: string
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
+
+  const membership = await getMembership(supabase, teamId);
+  if (!isMaster(membership?.roles ?? []) && !canActOnStage(membership, "ideate")) {
+    return { error: "You don't have access to edit this." };
+  }
+
+  const { error } = await supabase
+    .from("long_video_projects")
+    .update({ expected_date: date || null, updated_at: new Date().toISOString(), updated_by: user.id })
+    .eq("id", projectId);
+
+  if (error) return { error: "Couldn't save — try again." };
+
+  revalidatePath(`/videos/${projectId}`);
+  revalidatePath("/videos");
+  return { success: true };
+}
+
+const EDITABLE_FIELDS = ["hook", "notes", "budget_notes"] as const;
+type EditableField = (typeof EDITABLE_FIELDS)[number];
+
+/**
+ * Inline-edit for the free-text Ideate fields. Same access rule as the
+ * rest of Ideate (ideate-stage holders, or master) — checked here in
+ * addition to the RLS policy on long_video_projects, since this can be
+ * called at any point in the project's life, not just while it's
+ * actually in the Ideate stage.
+ */
+export async function updateIdeateField(
+  projectId: string,
+  teamId: string,
+  field: EditableField,
+  value: string
+) {
+  if (!EDITABLE_FIELDS.includes(field)) return { error: "Not editable." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
+
+  const membership = await getMembership(supabase, teamId);
+  if (!isMaster(membership?.roles ?? []) && !canActOnStage(membership, "ideate")) {
+    return { error: "You don't have access to edit this." };
+  }
+
+  const { error } = await supabase
+    .from("long_video_projects")
+    .update({ [field]: value || null, updated_at: new Date().toISOString(), updated_by: user.id })
+    .eq("id", projectId);
+
+  if (error) return { error: "Couldn't save — try again." };
+
+  revalidatePath(`/videos/${projectId}`);
+  return { success: true, updatedAt: new Date().toISOString() };
+}
+
+/**
+ * The inverse of advanceStage — moves a project one stage backward.
+ * Master-only, same as advancing; the RLS update policy is the real
+ * enforcement.
+ */
+export async function regressStage(projectId: string) {
+  const supabase = await createClient();
+
+  const { data: project } = await supabase
+    .from("long_video_projects")
+    .select("id, team_id, stage, title")
+    .eq("id", projectId)
+    .single();
+
+  if (!project) return { error: "Project not found." };
+
+  const currentIndex = STAGE_ORDER.indexOf(project.stage as PipelineStage);
+  const prev = STAGE_ORDER[currentIndex - 1];
+  if (!prev) return { error: "Already at the first stage." };
+
+  const { error } = await supabase
+    .from("long_video_projects")
+    .update({ stage: prev })
+    .eq("id", projectId);
+
+  if (error) {
+    return {
+      error:
+        "Couldn't move this back — you may not have permission to do this.",
+    };
+  }
+
+  const { data: assignees } = await supabase
+    .from("project_assignees")
+    .select("team_members(user_id)")
+    .eq("project_id", projectId)
+    .eq("stage", prev);
+
+  const recipients = (assignees ?? [])
+    .map((a) => (a.team_members as unknown as { user_id: string })?.user_id)
+    .filter(Boolean);
+
+  if (recipients.length > 0) {
+    await supabase.from("notifications").insert(
+      recipients.map((recipient_id) => ({
+        recipient_id,
+        project_id: projectId,
+        body: `"${project.title}" moved back to ${STAGE_LABELS[prev]}.`,
+      }))
+    );
+  }
+
+  revalidatePath(`/videos/${projectId}`);
+  revalidatePath("/videos");
+  return { success: true };
+}
+
+/**
+ * Advances a project to its next stage. Only the master can do this —
+ * the button is hidden from everyone else in the UI, but the database's
+ * RLS policy is what actually stops anyone from bypassing that by
+ * calling this directly.
+ */
+export async function advanceStage(projectId: string) {
+  const supabase = await createClient();
+
+  const { data: project } = await supabase
+    .from("long_video_projects")
+    .select("id, team_id, stage, title")
+    .eq("id", projectId)
+    .single();
+
+  if (!project) return { error: "Project not found." };
+
+  const currentIndex = STAGE_ORDER.indexOf(project.stage as PipelineStage);
+  const next = STAGE_ORDER[currentIndex + 1];
+  if (!next) return { error: "Already at the final stage." };
+
+  const { error } = await supabase
+    .from("long_video_projects")
+    .update({ stage: next })
+    .eq("id", projectId);
+
+  if (error) {
+    return {
+      error:
+        "Couldn't advance the project — you may not have permission to do this.",
+    };
+  }
+
+  // Notify whoever is already assigned to the new stage.
+  const { data: assignees } = await supabase
+    .from("project_assignees")
+    .select("team_members(user_id)")
+    .eq("project_id", projectId)
+    .eq("stage", next);
+
+  const recipients = (assignees ?? [])
+    .map((a) => (a.team_members as unknown as { user_id: string })?.user_id)
+    .filter(Boolean);
+
+  if (recipients.length > 0) {
+    await supabase.from("notifications").insert(
+      recipients.map((recipient_id) => ({
+        recipient_id,
+        project_id: projectId,
+        body: `"${project.title}" moved into ${STAGE_LABELS[next]} — you have work to do.`,
+      }))
+    );
+  }
+
+  revalidatePath(`/videos/${projectId}`);
+  revalidatePath("/videos");
+  return { success: true };
+}
+
+export async function assignMember(
+  projectId: string,
+  stage: PipelineStage,
+  teamMemberId: string
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("project_assignees")
+    .insert({ project_id: projectId, stage, team_member_id: teamMemberId });
+
+  if (error) {
+    return { error: "Couldn't assign — check they hold a role for this stage." };
+  }
+
+  const { data: project } = await supabase
+    .from("long_video_projects")
+    .select("title")
+    .eq("id", projectId)
+    .single();
+
+  const { data: member } = await supabase
+    .from("team_members")
+    .select("user_id")
+    .eq("id", teamMemberId)
+    .single();
+
+  if (member && project) {
+    await supabase.from("notifications").insert({
+      recipient_id: member.user_id,
+      project_id: projectId,
+      body: `You've been tagged on "${project.title}" for ${STAGE_LABELS[stage]}.`,
+    });
+  }
+
+  revalidatePath(`/videos/${projectId}`);
+  return { success: true };
+}
+
+export async function removeAssignee(projectId: string, assigneeRowId: string) {
+  const supabase = await createClient();
+  await supabase.from("project_assignees").delete().eq("id", assigneeRowId);
+  revalidatePath(`/videos/${projectId}`);
+}
+
+export async function postComment(
+  projectId: string,
+  stage: PipelineStage,
+  formData: FormData
+) {
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await supabase.from("project_comments").insert({
+    project_id: projectId,
+    stage,
+    author_id: user.id,
+    body,
+  });
+
+  if (!error) {
+    revalidatePath(`/videos/${projectId}`);
+  }
+}
+
+export async function deleteComment(commentId: string, projectId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("project_comments")
+    .delete()
+    .eq("id", commentId);
+
+  if (error) {
+    return { error: "Couldn't delete — you may not have permission." };
+  }
+
+  revalidatePath(`/videos/${projectId}`);
+  return { success: true };
+}

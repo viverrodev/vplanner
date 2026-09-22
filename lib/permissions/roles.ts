@@ -27,6 +27,7 @@ export const ROLES = [
   {
     id: "master",
     name: "Master",
+    colorVar: "--amber",
     stages: [
       "ideate",
       "research",
@@ -37,13 +38,18 @@ export const ROLES = [
       "publish",
     ] as PipelineStage[],
   },
-  { id: "researcher", name: "Researcher", stages: ["research"] as PipelineStage[] },
-  { id: "scripter", name: "Scripter", stages: ["script"] as PipelineStage[] },
-  { id: "filmer", name: "Filmer", stages: ["film"] as PipelineStage[] },
-  { id: "editor", name: "Editor", stages: ["edit"] as PipelineStage[] },
-  { id: "packager", name: "Packager", stages: ["package"] as PipelineStage[] },
-  { id: "publisher", name: "Publisher", stages: ["publish"] as PipelineStage[] },
+  { id: "researcher", name: "Researcher", colorVar: "--teal", stages: ["research"] as PipelineStage[] },
+  { id: "scripter", name: "Scripter", colorVar: "--blue", stages: ["script"] as PipelineStage[] },
+  { id: "filmer", name: "Filmer", colorVar: "--pink", stages: ["film"] as PipelineStage[] },
+  { id: "editor", name: "Editor", colorVar: "--violet", stages: ["edit"] as PipelineStage[] },
+  { id: "packager", name: "Packager", colorVar: "--gold", stages: ["package"] as PipelineStage[] },
+  { id: "publisher", name: "Publisher", colorVar: "--green", stages: ["publish"] as PipelineStage[] },
 ] as const;
+
+export function defaultRoleColor(roleId: RoleId): string {
+  const role = ROLES.find((r) => r.id === roleId);
+  return role ? `rgb(var(${role.colorVar}))` : "rgb(var(--ink-faint))";
+}
 
 export type RoleId = (typeof ROLES)[number]["id"];
 

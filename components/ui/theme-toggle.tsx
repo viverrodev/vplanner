@@ -1,0 +1,31 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+export function ThemeToggle() {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("vp-theme");
+    const dark = stored === "dark";
+    setIsDark(dark);
+    document.documentElement.classList.toggle("dark", dark);
+  }, []);
+
+  function toggle() {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("vp-theme", next ? "dark" : "light");
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      aria-label="Toggle dark mode"
+      className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
+    >
+      {isDark ? "☀" : "☾"}
+    </button>
+  );
+}

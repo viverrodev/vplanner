@@ -8,11 +8,15 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-2xl border border-black/10 dark:border-white/10 bg-surface p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-line/10 bg-surface p-8 shadow-sm">
         <div className="mb-7">
-          <div className="text-sm font-bold tracking-wide">VPLANNER</div>
-          <h1 className="text-2xl font-bold mt-2">Sign in</h1>
-          <p className="text-sm opacity-70 mt-1">
+          <div className="text-sm font-bold tracking-wide text-amber">
+            VPlanner
+          </div>
+          <h1 className="font-display text-3xl font-semibold mt-3">
+            Sign in
+          </h1>
+          <p className="text-sm text-ink-soft mt-1.5">
             Accounts are created by your team&rsquo;s owner. No public
             sign-up.
           </p>
@@ -28,7 +32,7 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-black/15 dark:border-white/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
+              className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
             />
           </div>
           <div>
@@ -40,7 +44,7 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-lg border border-black/15 dark:border-white/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
+              className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
             />
           </div>
 
@@ -51,7 +55,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={pending}
-            className="w-full rounded-lg bg-amber text-black font-semibold py-2.5 text-sm disabled:opacity-50"
+            className="w-full rounded-lg bg-amber text-white font-semibold py-2.5 text-sm disabled:opacity-50"
           >
             {pending ? "Signing in…" : "Sign in"}
           </button>

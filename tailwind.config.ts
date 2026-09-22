@@ -15,8 +15,13 @@ const config: Config = {
     extend: {
       colors: {
         paper: "rgb(var(--paper) / <alpha-value>)",
+        "paper-2": "rgb(var(--paper-2) / <alpha-value>)",
         ink: "rgb(var(--ink) / <alpha-value>)",
+        "ink-soft": "rgb(var(--ink-soft) / <alpha-value>)",
+        "ink-faint": "rgb(var(--ink-faint) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",
+        "surface-2": "rgb(var(--surface-2) / <alpha-value>)",
+        line: "rgb(var(--line) / <alpha-value>)",
         amber: "rgb(var(--amber) / <alpha-value>)",
         teal: "rgb(var(--teal) / <alpha-value>)",
         blue: "rgb(var(--blue) / <alpha-value>)",
@@ -25,6 +30,7 @@ const config: Config = {
         gold: "rgb(var(--gold) / <alpha-value>)",
         green: "rgb(var(--green) / <alpha-value>)",
         red: "rgb(var(--red) / <alpha-value>)",
+        coral: "rgb(var(--coral) / <alpha-value>)",
       },
       fontFamily: {
         display: ["var(--font-display)"],
