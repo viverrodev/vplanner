@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { setPrimaryTitle, updateTitleText } from "./title-actions";
 import { useToast } from "@/components/ui/toast-provider";
+import { EditIcon } from "@/components/ui/icons";
 
 type Title = { id: string; title: string; is_picked: boolean };
 
@@ -103,10 +104,10 @@ export function TitleList({
             {canEditText && (
               <button
                 onClick={() => startEdit(t)}
-                className="flex-shrink-0 text-[11px] font-semibold text-ink-soft hover:text-amber px-1.5"
+                className="flex-shrink-0 text-ink-soft hover:text-amber px-1"
                 title="Edit this title"
               >
-                ✎
+                <EditIcon className="w-3.5 h-3.5" />
               </button>
             )}
           </div>

@@ -3,9 +3,52 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_ORDER, STAGE_LABELS } from "@/modules/long-videos/lib/stages";
-import type { PipelineStage } from "@/lib/permissions/roles";
+import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
-import { isMaster } from "@/lib/permissions/roles";
+import { isMaster, ROLES } from "@/lib/permissions/roles";
+import { displayName } from "@/lib/avatar";
+import { buildMentionCatalog, resolveMentionRecipients } from "@/lib/mentions";
+
+const VIDEO_TYPES = ["Hub", "Help", "Hero"];
+
+export async function updateTypeTheme(
+  projectId: string,
+  teamId: string,
+  videoType: string[],
+  theme: string,
+  subtheme: string
+) {
+  if (videoType.length === 0) return { error: "Pick at least one type." };
+  if (!theme.trim()) return { error: "Theme can't be empty." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
+
+  const membership = await getMembership(supabase, teamId);
+  if (!isMaster(membership?.roles ?? []) && !canActOnStage(membership, "ideate")) {
+    return { error: "You don't have access to edit this." };
+  }
+
+  const { error } = await supabase
+    .from("long_video_projects")
+    .update({
+      video_type: videoType.filter((t) => VIDEO_TYPES.includes(t)),
+      theme: theme.trim(),
+      subtheme: subtheme.trim() || null,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    })
+    .eq("id", projectId);
+
+  if (error) return { error: "Couldn't save — try again." };
+
+  revalidatePath(`/videos/${projectId}`);
+  revalidatePath("/videos");
+  return { success: true };
+}
 
 export async function updateExpectedDate(
   projectId: string,
@@ -122,6 +165,7 @@ export async function regressStage(projectId: string) {
       recipients.map((recipient_id) => ({
         recipient_id,
         project_id: projectId,
+        stage: prev,
         body: `"${project.title}" moved back to ${STAGE_LABELS[prev]}.`,
       }))
     );
@@ -181,6 +225,7 @@ export async function advanceStage(projectId: string) {
       recipients.map((recipient_id) => ({
         recipient_id,
         project_id: projectId,
+        stage: next,
         body: `"${project.title}" moved into ${STAGE_LABELS[next]} — you have work to do.`,
       }))
     );
@@ -222,6 +267,7 @@ export async function assignMember(
     await supabase.from("notifications").insert({
       recipient_id: member.user_id,
       project_id: projectId,
+      stage,
       body: `You've been tagged on "${project.title}" for ${STAGE_LABELS[stage]}.`,
     });
   }
@@ -250,16 +296,65 @@ export async function postComment(
   } = await supabase.auth.getUser();
   if (!user) return;
 
+  const { data: project } = await supabase
+    .from("long_video_projects")
+    .select("team_id, title")
+    .eq("id", projectId)
+    .single();
+  if (!project) return;
+
   const { error } = await supabase.from("project_comments").insert({
     project_id: projectId,
     stage,
     author_id: user.id,
     body,
   });
+  if (error) return;
 
-  if (!error) {
-    revalidatePath(`/videos/${projectId}`);
+  // Resolve @mentions (@name, @RoleName, @all) into real notifications.
+  const [{ data: teamMembers }, { data: authorProfile }] = await Promise.all([
+    supabase
+      .from("team_members")
+      .select("user_id, profiles(full_name, email), member_roles(role)")
+      .eq("team_id", project.team_id)
+      .eq("status", "active"),
+    supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single(),
+  ]);
+
+  const members = (teamMembers ?? []).map((m) => {
+    const profile = m.profiles as unknown as { full_name: string | null; email: string | null } | null;
+    return {
+      userId: m.user_id as string,
+      name: displayName(profile?.full_name, profile?.email),
+      roles: (m.member_roles ?? []).map((r: { role: RoleId }) => r.role),
+    };
+  });
+
+  const catalog = buildMentionCatalog(
+    members.map((m) => ({ userId: m.userId, name: m.name })),
+    ROLES.map((r) => ({ id: r.id, name: r.name }))
+  );
+  const recipientIds = resolveMentionRecipients(body, catalog, members);
+  recipientIds.delete(user.id);
+
+  if (recipientIds.size > 0) {
+    const authorName = displayName(authorProfile?.full_name, authorProfile?.email);
+    const snippet = body.length > 80 ? `${body.slice(0, 80)}…` : body;
+    await supabase.from("notifications").insert(
+      Array.from(recipientIds).map((recipient_id) => ({
+        recipient_id,
+        project_id: projectId,
+        stage,
+        body: `${authorName} mentioned you in ${STAGE_LABELS[stage]} on "${project.title}": "${snippet}"`,
+      }))
+    );
   }
+
+  revalidatePath(`/videos/${projectId}`);
 }
 
 export async function deleteComment(commentId: string, projectId: string) {

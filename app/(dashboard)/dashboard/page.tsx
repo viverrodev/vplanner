@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     .eq("status", "active");
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-8 max-w-3xl">
       <h1 className="font-display text-3xl font-semibold mb-1.5">
         {currentTeam.name}
       </h1>

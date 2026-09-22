@@ -6,16 +6,18 @@ import { getMembership, canActOnStage } from "@/lib/permissions/membership";
 import { isMaster, roleAllowsStage, ROLES } from "@/lib/permissions/roles";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
 import { STAGE_LABELS, STAGE_ORDER, stageColor } from "@/modules/long-videos/lib/stages";
-import { colorForId, initialsFor, displayName } from "@/lib/avatar";
+import { getCachedUser } from "@/lib/supabase/get-user";
+import { colorForId, displayName } from "@/lib/avatar";
 import { getRoleColors } from "@/lib/permissions/team-role-colors";
-import { relativeTime } from "@/lib/relative-time";
+import { buildMentionCatalog } from "@/lib/mentions";
 import { AdvanceStageButton, RegressStageButton } from "./advance-button";
 import { AssigneeRow } from "./assignee-row";
 import { TitleList } from "./title-list";
 import { ThumbnailUploader } from "./thumbnail-uploader";
 import { InlineEditable } from "./inline-editable";
 import { ExpectedDateEditor } from "./expected-date-editor";
-import { CommentDeleteButton } from "./comment-delete-button";
+import { TypeThemeEditor } from "./type-theme-editor";
+import { NotesPanel } from "./notes-panel";
 import { postComment } from "./actions";
 
 const TABS: PipelineStage[] = [
@@ -54,9 +56,7 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
 
   const membership = await getMembership(supabase, currentTeam.id);
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
+  const currentUser = await getCachedUser();
   const userIsMaster = isMaster(membership?.roles ?? []);
 
   const [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }] =
@@ -125,6 +125,11 @@ export default async function ProjectDetailPage({
     ? peopleByUserId.get(project.updated_by)?.name ?? null
     : null;
 
+  const mentionCatalog = buildMentionCatalog(
+    Array.from(peopleByUserId.entries()).map(([userId, info]) => ({ userId, name: info.name })),
+    ROLES.map((r) => ({ id: r.id, name: r.name }))
+  );
+
   const currentIndex = STAGE_ORDER.indexOf(project.stage as PipelineStage);
   const nextStage = STAGE_ORDER[currentIndex + 1];
 
@@ -154,7 +159,7 @@ export default async function ProjectDetailPage({
   const canComment = canActOnStage(membership, tab);
 
   return (
-    <div className="px-10 py-9 w-full max-w-[1400px] mx-auto">
+    <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-[1400px] mx-auto">
       <Link
         href="/videos"
         className="text-sm text-ink-faint hover:text-ink mb-4 inline-block"
@@ -196,14 +201,16 @@ export default async function ProjectDetailPage({
           )}
         </div>
       </div>
-      <p className="text-[13px] mb-2">
-        {project.video_type?.join(" + ")}{" "}
-        <span className="font-bold" style={{ color: stageColor(project.stage as PipelineStage) }}>
-          {project.theme}
-          {project.subtheme ? ` · ${project.subtheme}` : ""}
-        </span>
-      </p>
-      <div className="mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <TypeThemeEditor
+          projectId={id}
+          teamId={currentTeam.id}
+          videoType={project.video_type ?? []}
+          theme={project.theme ?? ""}
+          subtheme={project.subtheme}
+          canEdit={canActOnStage(membership, "ideate")}
+          color={stageColor(project.stage as PipelineStage)}
+        />
         <ExpectedDateEditor
           projectId={id}
           teamId={currentTeam.id}
@@ -353,85 +360,29 @@ export default async function ProjectDetailPage({
           )}
         </div>
 
-        {/* Notes & Q&A panel — same pattern at every stage */}
-        <div className="rounded-xl border border-line/10 bg-surface p-4 h-fit">
-          <div className="text-[13px] font-display font-semibold mb-3">
-            Notes & Q&A — {STAGE_LABELS[tab]}
-          </div>
-          <div className="space-y-3 mb-3 max-h-[360px] overflow-y-auto">
-            {commentsForTab.length === 0 && (
-              <p className="text-[12px] text-ink-faint">
-                No notes on this stage yet.
-              </p>
-            )}
-            {commentsForTab.map((c) => {
-              const person = peopleByUserId.get(c.author_id);
-              const name = person?.name ?? "Unknown";
-              const canDelete = userIsMaster || c.author_id === currentUser?.id;
-              return (
-                <div key={c.id} className="flex gap-2 border-b border-line/10 pb-2.5 last:border-none">
-                  <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 mt-0.5"
-                    style={{ background: person?.color ?? "#999" }}
-                  >
-                    {initialsFor(name)}
-                  </span>
-                  <div className="text-[12.5px] min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold">{name}</span>
-                      {(person?.roles ?? []).map((r) => {
-                        const roleInfo = ROLES.find((role) => role.id === r);
-                        const rc = roleColors[r];
-                        return (
-                          <span
-                            key={r}
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
-                            style={{
-                              color: rc,
-                              borderColor: `color-mix(in srgb, ${rc} 45%, transparent)`,
-                              background: `color-mix(in srgb, ${rc} 12%, transparent)`,
-                            }}
-                          >
-                            {roleInfo?.name}
-                          </span>
-                        );
-                      })}
-                      <span className="text-[10.5px] text-ink-soft ml-auto">
-                        {relativeTime(c.created_at)}
-                      </span>
-                      {canDelete && (
-                        <CommentDeleteButton commentId={c.id} projectId={id} />
-                      )}
-                    </div>
-                    <div className="text-ink-soft leading-relaxed mt-0.5">{c.body}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {canComment ? (
-            <form action={postComment.bind(null, id, tab)} className="flex gap-1.5">
-              <input
-                name="body"
-                type="text"
-                placeholder="Leave a note…"
-                required
-                className="flex-1 rounded-lg border border-line/15 bg-surface-2 px-2.5 py-1.5 text-[12.5px] outline-none focus:ring-2 focus:ring-amber"
-              />
-              <button
-                type="submit"
-                className="rounded-lg bg-amber text-white text-[12px] font-semibold px-3 py-1.5"
-              >
-                Send
-              </button>
-            </form>
-          ) : (
-            <p className="text-[11px] text-ink-faint">
-              Only people tagged on this stage (or the master) can post notes
-              here.
-            </p>
-          )}
-        </div>
+        <NotesPanel
+          stageLabel={STAGE_LABELS[tab]}
+          comments={commentsForTab.map((c) => {
+            const person = peopleByUserId.get(c.author_id);
+            return {
+              id: c.id,
+              name: person?.name ?? "Unknown",
+              avatarColor: person?.color ?? "#999",
+              roles: (person?.roles ?? []).map((r) => ({
+                name: ROLES.find((role) => role.id === r)?.name ?? r,
+                color: roleColors[r],
+              })),
+              createdAt: c.created_at,
+              body: c.body,
+              canDelete: userIsMaster || c.author_id === currentUser?.id,
+            };
+          })}
+          canComment={canComment}
+          projectId={id}
+          postAction={postComment.bind(null, id, tab)}
+          mentionCatalog={mentionCatalog}
+          roleColors={roleColors}
+        />
       </div>
     </div>
   );

@@ -2,14 +2,7 @@ import Link from "next/link";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import type { TeamSummary } from "@/lib/teams";
 import { initialsFor } from "@/lib/avatar";
-
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: "◧", available: true },
-  { href: "/videos", label: "Long videos", icon: "▶", available: true },
-  { href: "/calendar", label: "Calendar", icon: "▦", available: false },
-  { href: "/team", label: "Team", icon: "◍", available: false },
-  { href: "/settings", label: "Settings", icon: "⚙", available: false },
-];
+import { NAV_ITEMS } from "@/lib/nav-items";
 
 export function Sidebar({
   teams,
@@ -21,7 +14,7 @@ export function Sidebar({
   userDisplayName: string;
 }) {
   return (
-    <aside className="w-[236px] flex-shrink-0 border-r border-line/10 bg-surface flex flex-col p-3.5 gap-1 h-screen sticky top-0 overflow-y-auto">
+    <aside className="hidden md:flex w-[236px] flex-shrink-0 border-r border-line/10 bg-surface flex-col p-3.5 gap-1 h-screen sticky top-0 overflow-y-auto">
       <div className="mb-4">
         <WorkspaceSwitcher teams={teams} currentTeam={currentTeam} />
       </div>

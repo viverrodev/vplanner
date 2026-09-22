@@ -42,7 +42,7 @@ export default async function VideosPage({
   const thumbnailBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/`;
 
   return (
-    <div className="px-10 py-9 w-full max-w-[1720px] mx-auto">
+    <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-[1720px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
           <h1 className="font-display text-[40px] leading-none font-semibold mb-2.5">

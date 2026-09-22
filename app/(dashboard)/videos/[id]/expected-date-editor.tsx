@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { updateExpectedDate } from "./actions";
 import { useToast } from "@/components/ui/toast-provider";
 import { formatDate } from "@/modules/long-videos/lib/stages";
+import { EditIcon } from "@/components/ui/icons";
 
 export function ExpectedDateEditor({
   projectId,
@@ -79,7 +80,10 @@ export function ExpectedDateEditor({
         {date ? formatDate(date) : "No expected date set"}
       </span>
       {canEdit && (
-        <span className="text-[10.5px] text-ink-soft font-medium">Edit</span>
+        <span className="flex items-center gap-1 text-[10.5px] text-ink-soft font-medium">
+          <EditIcon className="w-3 h-3" />
+          Edit
+        </span>
       )}
     </button>
   );

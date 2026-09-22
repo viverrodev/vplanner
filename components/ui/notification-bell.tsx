@@ -4,11 +4,13 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { markNotificationRead, markAllNotificationsRead } from "@/app/(dashboard)/notification-actions";
 import { relativeTime } from "@/lib/relative-time";
+import { BellIcon } from "./icons";
 
 export type NotificationItem = {
   id: string;
   body: string;
   project_id: string | null;
+  stage: string | null;
   is_read: boolean;
   created_at: string;
 };
@@ -37,7 +39,9 @@ export function NotificationBell({
     startTransition(() => {
       markNotificationRead(n.id);
     });
-    if (n.project_id) router.push(`/videos/${n.project_id}`);
+    if (n.project_id) {
+      router.push(n.stage ? `/videos/${n.project_id}?tab=${n.stage}` : `/videos/${n.project_id}`);
+    }
   }
 
   return (
@@ -47,9 +51,9 @@ export function NotificationBell({
         className="relative w-9 h-9 rounded-lg flex items-center justify-center text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
         aria-label="Notifications"
       >
-        🔔
+        <BellIcon className="w-[18px] h-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-red" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red" />
         )}
       </button>
 

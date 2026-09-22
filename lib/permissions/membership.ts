@@ -1,5 +1,7 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type RoleId, hasStageAccess, isMaster, type PipelineStage } from "./roles";
+import { getCachedUser } from "@/lib/supabase/get-user";
 
 export type Membership = {
   teamMemberId: string;
@@ -11,14 +13,16 @@ export type Membership = {
  * UI-side only — used to decide what to show/hide. The database's own
  * RLS policies are the real enforcement; this just keeps the interface
  * from offering buttons that would fail anyway.
+ *
+ * Cached per-request — several places on a project page all need to
+ * know "am I the master / do I have access to this stage," and this
+ * makes sure that's one query, not several.
  */
-export async function getMembership(
+export const getMembership = cache(async function getMembership(
   supabase: SupabaseClient,
   teamId: string
 ): Promise<Membership | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCachedUser();
   if (!user) return null;
 
   const { data } = await supabase
@@ -37,7 +41,7 @@ export async function getMembership(
       (r: { role: RoleId }) => r.role
     ) as RoleId[],
   };
-}
+});
 
 export function canActOnStage(
   membership: Membership | null,

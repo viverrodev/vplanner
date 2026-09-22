@@ -5,6 +5,7 @@ import { updateIdeateField } from "./actions";
 import { renderLiteMarkdown } from "@/lib/markdown-lite";
 import { relativeTime } from "@/lib/relative-time";
 import { useToast } from "@/components/ui/toast-provider";
+import { EditIcon } from "@/components/ui/icons";
 
 type Field = "hook" | "notes" | "budget_notes";
 
@@ -102,7 +103,8 @@ export function InlineEditable({
               onClick={() => setEditing(true)}
               className="flex-shrink-0 flex items-center gap-1 rounded-md border border-line/15 px-2.5 py-1.5 text-[11.5px] font-semibold text-ink-soft hover:border-amber hover:text-amber transition-colors"
             >
-              ✎ Edit
+              <EditIcon className="w-3 h-3" />
+              Edit
             </button>
           )}
         </div>

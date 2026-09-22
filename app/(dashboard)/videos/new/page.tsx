@@ -15,7 +15,7 @@ export default function NewVideoProjectPage() {
   const [picked, setPicked] = useState(0);
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 sm:p-8 max-w-2xl">
       <Link
         href="/videos"
         className="text-sm text-ink-faint hover:text-ink mb-5 inline-block"

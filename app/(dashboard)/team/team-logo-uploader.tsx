@@ -1,0 +1,81 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { updateTeamLogo } from "./actions";
+import { useToast } from "@/components/ui/toast-provider";
+
+export function TeamLogoUploader({
+  teamId,
+  logoUrl,
+  initials,
+  color,
+}: {
+  teamId: string;
+  logoUrl: string | null;
+  initials: string;
+  color: string;
+}) {
+  const supabase = createClient();
+  const router = useRouter();
+  const toast = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed.");
+      return;
+    }
+    setBusy(true);
+
+    const path = `${teamId}/logo-${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("team-logos").upload(path, file);
+    if (uploadError) {
+      toast.error("Upload failed — you may not have permission.");
+      setBusy(false);
+      return;
+    }
+
+    const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
+    const result = await updateTeamLogo(teamId, data.publicUrl);
+    setBusy(false);
+    if (result?.error) toast.error(result.error);
+    else {
+      toast.success("Workspace picture updated");
+      router.refresh();
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      <div
+        className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 overflow-hidden"
+        style={{ background: color }}
+      >
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          initials
+        )}
+      </div>
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className="rounded-lg border border-line/15 px-3.5 py-2 text-[12.5px] font-semibold text-ink-soft hover:border-amber hover:text-amber transition-colors disabled:opacity-50"
+      >
+        {busy ? "Uploading…" : "Change picture"}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+    </div>
+  );
+}

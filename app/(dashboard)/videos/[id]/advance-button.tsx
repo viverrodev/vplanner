@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { advanceStage, regressStage } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { useToast } from "@/components/ui/toast-provider";
+import { ArrowRightIcon, ArrowLeftIcon } from "@/components/ui/icons";
 
 export function AdvanceStageButton({
   projectId,
@@ -34,9 +35,10 @@ export function AdvanceStageButton({
     <button
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex items-center rounded-lg bg-amber text-white font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:brightness-110 transition-[filter]"
+      className="inline-flex items-center gap-1.5 rounded-lg bg-amber text-white font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:brightness-110 transition-[filter]"
     >
-      {pending ? "Moving…" : `Advance to ${nextLabel} →`}
+      {pending ? "Moving…" : `Advance to ${nextLabel}`}
+      {!pending && <ArrowRightIcon className="w-4 h-4" />}
     </button>
   );
 }
@@ -71,9 +73,10 @@ export function RegressStageButton({
     <button
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex items-center rounded-lg border-2 border-line/15 text-ink-soft font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:border-red/40 hover:text-red transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-lg border-2 border-line/15 text-ink-soft font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:border-red/40 hover:text-red transition-colors"
     >
-      {pending ? "Moving…" : `← Back to ${prevLabel}`}
+      {!pending && <ArrowLeftIcon className="w-4 h-4" />}
+      {pending ? "Moving…" : `Back to ${prevLabel}`}
     </button>
   );
 }
