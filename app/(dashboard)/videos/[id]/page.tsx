@@ -10,6 +10,7 @@ import { getCachedUser } from "@/lib/supabase/get-user";
 import { colorForId, displayName } from "@/lib/avatar";
 import { getRoleColors } from "@/lib/permissions/team-role-colors";
 import { buildMentionCatalog } from "@/lib/mentions";
+import { CheckIcon, ArrowLeftIcon } from "@/components/ui/icons";
 import { AdvanceStageButton, RegressStageButton } from "./advance-button";
 import { AssigneeRow } from "./assignee-row";
 import { TitleList } from "./title-list";
@@ -18,6 +19,7 @@ import { InlineEditable } from "./inline-editable";
 import { ExpectedDateEditor } from "./expected-date-editor";
 import { TypeThemeEditor } from "./type-theme-editor";
 import { NotesPanel } from "./notes-panel";
+import { DeleteProjectButton } from "./delete-project-button";
 import { postComment } from "./actions";
 
 const TABS: PipelineStage[] = [
@@ -59,8 +61,11 @@ export default async function ProjectDetailPage({
   const currentUser = await getCachedUser();
   const userIsMaster = isMaster(membership?.roles ?? []);
 
-  const [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }, { data: attachmentRows }] =
-    await Promise.all([
+  const [
+    [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }, { data: attachmentRows }],
+    roleColors,
+  ] = await Promise.all([
+    Promise.all([
       supabase
         .from("project_titles")
         .select("id, title, is_picked, position")
@@ -89,9 +94,9 @@ export default async function ProjectDetailPage({
         .from("comment_attachments")
         .select("id, comment_id, file_name, file_path, file_size, mime_type, project_comments!inner(project_id)")
         .eq("project_comments.project_id", id),
-    ]);
-
-  const roleColors = await getRoleColors(supabase, currentTeam.id);
+    ]),
+    getRoleColors(supabase, currentTeam.id),
+  ]);
 
   const memberColors = ["#E8630D", "#178C7C", "#3159C9", "#6B4FD6", "#B84070", "#B4890E", "#2B9757"];
   const membersById = new Map(
@@ -126,7 +131,7 @@ export default async function ProjectDetailPage({
     list.push({
       id: a.id,
       name: a.file_name,
-      url: attachmentBase + a.file_path,
+      url: a.file_path.startsWith("http") ? a.file_path : attachmentBase + a.file_path,
       size: a.file_size,
       mimeType: a.mime_type,
     });
@@ -179,9 +184,10 @@ export default async function ProjectDetailPage({
     <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-[1400px] mx-auto">
       <Link
         href="/videos"
-        className="text-sm text-ink-faint hover:text-ink mb-4 inline-block"
+        className="flex items-center gap-1.5 text-sm text-ink-faint hover:text-ink mb-4"
       >
-        ← Long videos
+        <ArrowLeftIcon className="w-3.5 h-3.5" />
+        Long videos
       </Link>
 
       <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
@@ -226,7 +232,7 @@ export default async function ProjectDetailPage({
           theme={project.theme ?? ""}
           subtheme={project.subtheme}
           canEdit={canActOnStage(membership, "ideate")}
-          color={stageColor(project.stage as PipelineStage)}
+          color={colorForId(project.theme || "theme")}
         />
         <ExpectedDateEditor
           projectId={id}
@@ -234,6 +240,9 @@ export default async function ProjectDetailPage({
           date={project.expected_date}
           canEdit={canActOnStage(membership, "ideate")}
         />
+        {userIsMaster && (
+          <DeleteProjectButton projectId={id} teamId={currentTeam.id} projectTitle={project.title} />
+        )}
       </div>
 
       {/* Stage tracker */}
@@ -248,14 +257,16 @@ export default async function ProjectDetailPage({
             <div key={s} className="flex items-center flex-shrink-0">
               <div className="flex flex-col items-center gap-1.5 min-w-[74px]">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold border-2"
+                  className={`rounded-full flex items-center justify-center font-bold border-2 transition-all ${
+                    isCurrent ? "w-8 h-8 text-[12px] current-stage-pulse" : "w-7 h-7 text-[11px]"
+                  }`}
                   style={{
                     borderColor: isDone || isCurrent ? stepColor : "rgb(var(--line) / 0.2)",
                     background: isDone || isCurrent ? stepColor : "transparent",
                     color: isDone || isCurrent ? "#fff" : "rgb(var(--ink-faint))",
                   }}
                 >
-                  {isDone ? "✓" : i + 1}
+                  {isDone ? <CheckIcon className="w-4 h-4" /> : i + 1}
                 </div>
                 <span className={`text-[10px] font-bold ${isDone || isCurrent ? "text-ink" : "text-ink-faint"}`}>
                   {STAGE_LABELS[s]}

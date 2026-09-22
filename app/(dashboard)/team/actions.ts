@@ -84,6 +84,21 @@ export async function setMemberRoles(
 
   const supabase = await createClient();
 
+  // The team's owner is always its master — a permanent invariant, not
+  // just a "need at least one" rule. This is what actually stops the
+  // exact bug that happened: the owner accidentally unchecking their
+  // own Master box.
+  const { data: team } = await supabase.from("teams").select("owner_id").eq("id", teamId).single();
+  const { data: targetMember } = await supabase
+    .from("team_members")
+    .select("user_id")
+    .eq("id", teamMemberId)
+    .single();
+
+  if (team && targetMember && targetMember.user_id === team.owner_id && !roleIds.includes("master")) {
+    return { error: "The team owner is always Master — that can't be changed." };
+  }
+
   // Safeguard: never let the team end up with zero masters.
   const wasMaster = await supabase
     .from("member_roles")

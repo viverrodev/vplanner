@@ -5,6 +5,7 @@ import { isMaster, ROLES } from "@/lib/permissions/roles";
 import type { RoleId } from "@/lib/permissions/roles";
 import { getRoleColors } from "@/lib/permissions/team-role-colors";
 import { colorForId, displayName, initialsFor } from "@/lib/avatar";
+import { getCachedUser } from "@/lib/supabase/get-user";
 import { TeamLogoUploader } from "./team-logo-uploader";
 import { TeamNameEditor } from "./team-name-editor";
 import { InviteForm } from "./invite-form";
@@ -28,6 +29,7 @@ export default async function TeamPage() {
 
   const membership = await getMembership(supabase, currentTeam.id);
   const userIsMaster = isMaster(membership?.roles ?? []);
+  const currentUser = await getCachedUser();
 
   const [{ data: team }, { data: members }, { data: connections }] = await Promise.all([
     supabase.from("teams").select("id, name, logo_url, color, owner_id").eq("id", currentTeam.id).single(),
@@ -46,6 +48,7 @@ export default async function TeamPage() {
     const email = profile?.email ?? m.invited_email;
     return {
       teamMemberId: m.id,
+      userId: m.user_id,
       name: displayName(profile?.full_name, email),
       email,
       status: m.status as "invited" | "active",
@@ -92,7 +95,13 @@ export default async function TeamPage() {
         <div>
           {memberRows.map((m) =>
             userIsMaster ? (
-              <MemberManager key={m.teamMemberId} teamId={currentTeam.id} member={m} roleColors={roleColors} />
+              <MemberManager
+                key={m.teamMemberId}
+                teamId={currentTeam.id}
+                member={m}
+                roleColors={roleColors}
+                isSelf={m.userId === currentUser?.id}
+              />
             ) : (
               <div key={m.teamMemberId} className="flex items-center gap-3 py-3 border-b border-line/10 last:border-none">
                 <span

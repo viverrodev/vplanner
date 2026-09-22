@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CommentDeleteButton } from "./comment-delete-button";
 import { relativeTime } from "@/lib/relative-time";
 import { initialsFor } from "@/lib/avatar";
@@ -60,6 +61,43 @@ export function NotesPanel({
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
   const toast = useToast();
   const supabase = createClient();
+  const router = useRouter();
+  const listRef = useRef<HTMLDivElement>(null);
+  const expandedListRef = useRef<HTMLDivElement>(null);
+
+  // Live updates: if anyone else posts or deletes a note on this project
+  // while you're looking at it, re-fetch so you see it without having to
+  // refresh the page yourself.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`project-comments-${projectId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "project_comments", filter: `project_id=eq.${projectId}` },
+        () => router.refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+  // Jump to the newest comment whenever the list changes (e.g. right
+  // after sending) instead of leaving the scroll position wherever it
+  // was, which is why it always felt stuck until you scrolled manually.
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    expandedListRef.current?.scrollTo({ top: expandedListRef.current.scrollHeight, behavior: "smooth" });
+  }, [comments.length]);
+
+  // Jump straight to the bottom the instant the fullscreen view opens —
+  // otherwise it renders scrolled to the top and you have to scroll down
+  // yourself every time.
+  useEffect(() => {
+    if (expanded) {
+      expandedListRef.current?.scrollTo({ top: expandedListRef.current.scrollHeight });
+    }
+  }, [expanded]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -70,7 +108,7 @@ export function NotesPanel({
     return () => document.removeEventListener("keydown", onKey);
   }, [expanded]);
 
-  async function handleSend(text: string, files: File[]) {
+  async function handleSend(text: string, files: File[], gifUrls: string[] = []) {
     setUploading(true);
     const uploaded: { name: string; path: string; size: number; type: string }[] = [];
 
@@ -84,6 +122,10 @@ export function NotesPanel({
       uploaded.push({ name: file.name, path, size: file.size, type: file.type || "application/octet-stream" });
     }
 
+    gifUrls.forEach((url) => {
+      uploaded.push({ name: "GIF", path: url, size: 0, type: "image/gif" });
+    });
+
     setUploading(false);
 
     const fd = new FormData();
@@ -92,9 +134,9 @@ export function NotesPanel({
     postAction(fd);
   }
 
-  function renderList(maxHeightClass: string) {
+  function renderItems() {
     return (
-      <div className={`space-y-3 mb-3 pr-2 overflow-y-auto styled-scroll ${maxHeightClass}`}>
+      <>
         {comments.length === 0 && (
           <p className="text-[12px] text-ink-faint">
             No notes on this stage yet.
@@ -172,7 +214,7 @@ export function NotesPanel({
             )}
           </div>
         ))}
-      </div>
+      </>
     );
   }
 
@@ -207,7 +249,9 @@ export function NotesPanel({
             <ExpandIcon className="w-[15px] h-[15px]" />
           </button>
         </div>
-        {renderList("max-h-[360px]")}
+        <div ref={listRef} className="space-y-3 mb-3 pr-2 max-h-[360px] overflow-y-auto styled-scroll">
+          {renderItems()}
+        </div>
         {renderComposer()}
       </div>
 
@@ -232,8 +276,8 @@ export function NotesPanel({
                 <CloseIcon className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {renderList("max-h-none")}
+            <div ref={expandedListRef} className="flex-1 overflow-y-auto styled-scroll px-5 py-4 space-y-3">
+              {renderItems()}
             </div>
             <div className="px-5 py-4 border-t border-line/10 flex-shrink-0">
               {renderComposer()}

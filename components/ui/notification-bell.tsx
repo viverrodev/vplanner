@@ -72,7 +72,7 @@ export function NotificationBell({
               </button>
             )}
           </div>
-          <div className="max-h-[380px] overflow-y-auto">
+          <div className="max-h-[380px] overflow-y-auto styled-scroll">
             {notifications.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12.5px] text-ink-faint">
                 Nothing yet.

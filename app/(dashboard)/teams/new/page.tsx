@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { createTeam } from "./actions";
+import { ArrowLeftIcon } from "@/components/ui/icons";
 
 export default function NewTeamPage() {
   const [state, formAction, pending] = useActionState(createTeam, undefined);
@@ -12,9 +13,10 @@ export default function NewTeamPage() {
       <div className="w-full max-w-md">
         <Link
           href="/dashboard"
-          className="text-sm text-ink-faint hover:text-ink mb-6 inline-block"
+          className="flex items-center gap-1.5 text-sm text-ink-faint hover:text-ink mb-6"
         >
-          ← Back
+          <ArrowLeftIcon className="w-3.5 h-3.5" />
+          Back
         </Link>
 
         <h1 className="font-display text-3xl font-semibold mb-2">

@@ -1,13 +1,49 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { STAGE_ORDER, STAGE_LABELS } from "@/modules/long-videos/lib/stages";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
 import { isMaster, ROLES } from "@/lib/permissions/roles";
 import { displayName } from "@/lib/avatar";
 import { buildMentionCatalog, resolveMentionRecipients } from "@/lib/mentions";
+
+/**
+ * Deletes a project permanently — master-only, checked here before doing
+ * anything. Uses the admin client for the actual deletion so we can also
+ * clean up the project's uploaded files (thumbnails, chat attachments),
+ * which live in storage and aren't covered by the database's own cascade
+ * deletes on the comment/title/assignee rows.
+ */
+export async function deleteProject(projectId: string, teamId: string) {
+  const supabase = await createClient();
+  const membership = await getMembership(supabase, teamId);
+  if (!isMaster(membership?.roles ?? [])) {
+    return { error: "Only the master can delete a project." };
+  }
+
+  const admin = createAdminClient();
+
+  const [{ data: thumbFiles }, { data: attachFiles }] = await Promise.all([
+    admin.storage.from("thumbnails").list(projectId),
+    admin.storage.from("comment-attachments").list(projectId),
+  ]);
+  if (thumbFiles && thumbFiles.length > 0) {
+    await admin.storage.from("thumbnails").remove(thumbFiles.map((f) => `${projectId}/${f.name}`));
+  }
+  if (attachFiles && attachFiles.length > 0) {
+    await admin.storage.from("comment-attachments").remove(attachFiles.map((f) => `${projectId}/${f.name}`));
+  }
+
+  const { error } = await admin.from("long_video_projects").delete().eq("id", projectId);
+  if (error) return { error: "Couldn't delete the project — try again." };
+
+  revalidatePath("/videos");
+  redirect("/videos");
+}
 
 const VIDEO_TYPES = ["Hub", "Help", "Hero"];
 

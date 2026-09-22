@@ -10,6 +10,7 @@ import { initialsFor } from "@/lib/avatar";
 
 export type MemberRow = {
   teamMemberId: string;
+  userId: string | null;
   name: string;
   email: string;
   status: "invited" | "active";
@@ -22,10 +23,12 @@ export function MemberManager({
   teamId,
   member,
   roleColors,
+  isSelf,
 }: {
   teamId: string;
   member: MemberRow;
   roleColors: Record<RoleId, string>;
+  isSelf: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draftRoles, setDraftRoles] = useState<RoleId[]>(member.roles);
@@ -103,40 +106,50 @@ export function MemberManager({
           ))}
         </div>
         <div className="ml-auto flex gap-2">
-          <button
-            onClick={() => setOpen((o) => !o)}
-            className="text-[11.5px] font-semibold text-ink-soft hover:text-ink"
-          >
-            {open ? "Close" : "Manage"}
-          </button>
-          {!member.isOwner && (
-            <button
-              onClick={handleKick}
-              disabled={pending}
-              className="text-[11.5px] font-semibold text-ink-soft hover:text-red disabled:opacity-40"
-            >
-              Remove
-            </button>
+          {isSelf ? (
+            <span className="text-[11px] text-ink-faint">This is you</span>
+          ) : (
+            <>
+              <button
+                onClick={() => setOpen((o) => !o)}
+                className="text-[11.5px] font-semibold text-ink-soft hover:text-ink"
+              >
+                {open ? "Close" : "Manage"}
+              </button>
+              {!member.isOwner && (
+                <button
+                  onClick={handleKick}
+                  disabled={pending}
+                  className="text-[11.5px] font-semibold text-ink-soft hover:text-red disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {open && (
+      {open && !isSelf && (
         <div className="pb-4 pl-11">
           <div className="flex flex-wrap gap-1.5 mb-2">
             {ROLES.map((r) => {
               const active = draftRoles.includes(r.id);
+              const locked = r.id === "master" && member.isOwner;
               return (
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => toggleRole(r.id)}
+                  disabled={locked}
+                  onClick={() => !locked && toggleRole(r.id)}
+                  title={locked ? "The team owner is always Master" : undefined}
                   className={`rounded-full px-3 py-1 text-[11.5px] font-semibold border transition-colors ${
                     active ? "text-white" : "border-line/15 text-ink-soft"
-                  }`}
+                  } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
                   style={active ? { background: roleColors[r.id], borderColor: roleColors[r.id] } : undefined}
                 >
                   {r.name}
+                  {locked && " 🔒"}
                 </button>
               );
             })}

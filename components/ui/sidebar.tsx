@@ -14,7 +14,7 @@ export function Sidebar({
   userDisplayName: string;
 }) {
   return (
-    <aside className="hidden md:flex w-[236px] flex-shrink-0 border-r border-line/10 bg-surface flex-col p-3.5 gap-1 h-screen sticky top-0 overflow-y-auto">
+    <aside className="hidden md:flex w-[236px] flex-shrink-0 border-r border-line/10 bg-surface flex-col p-3.5 gap-1 h-screen sticky top-0 overflow-y-auto styled-scroll">
       <div className="mb-4">
         <WorkspaceSwitcher teams={teams} currentTeam={currentTeam} />
       </div>

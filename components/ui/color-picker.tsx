@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 
 const SWATCHES = [
-  "#E8630D", "#178C7C", "#3159C9", "#6B4FD6", "#B84070", "#B4890E", "#2B9757", "#D03846",
-  "#E05A40", "#F2C94C", "#56CCF2", "#9B51E0", "#27AE60", "#EB5757", "#2D9CDB", "#F2994A",
-  "#BB6BD9", "#6FCF97", "#333333", "#828282", "#BDBDBD", "#F5F5F5",
+  // reds → oranges → yellows → greens → teals/blues → purples → pinks
+  "#EB5757", "#D03846", "#B84070",
+  "#E05A40", "#E8630D", "#F2994A",
+  "#F2C94C", "#B4890E",
+  "#6FCF97", "#27AE60", "#178C7C",
+  "#56CCF2", "#2D9CDB", "#3159C9",
+  "#6B4FD6", "#9B51E0", "#BB6BD9",
+  // neutrals last
+  "#333333", "#828282", "#BDBDBD", "#F5F5F5",
 ];
 
 export function ColorPicker({
