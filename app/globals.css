@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Baseline tokens only — matches the prototype's palette so the app is
+  coherent to work in, but this gets a full design pass (type scale,
+  motion, final palette) before we build the real screens.
+*/
+:root {
+  --paper: 238 240 236;
+  --ink: 21 26 22;
+  --surface: 255 255 255;
+  --amber: 232 99 13;
+  --teal: 23 140 124;
+  --blue: 49 89 201;
+  --violet: 107 79 214;
+  --pink: 184 64 112;
+  --gold: 180 137 14;
+  --green: 46 158 91;
+  --red: 217 59 74;
+
+  --font-display: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: ui-monospace, monospace;
+}
+
+.dark {
+  --paper: 18 16 13;
+  --ink: 243 239 231;
+  --surface: 29 25 19;
+  --amber: 255 138 46;
+}
+
+body {
+  background: rgb(var(--paper));
+  color: rgb(var(--ink));
+}
