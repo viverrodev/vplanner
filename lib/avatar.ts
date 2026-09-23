@@ -27,16 +27,17 @@ export function initialsFor(name: string) {
 }
 
 /**
- * Prefers a real display name; falls back to the part of the email
- * before the @ rather than the full address, since a whole email looks
- * out of place next to everyone else's name. Once real profile settings
- * exist, full_name will be set for everyone and this fallback stops
- * mattering much.
+ * Prefers username, then a real full name, then falls back to the part
+ * of the email before the @ rather than the full address. Now that
+ * Settings lets everyone set a username, that's the primary identity
+ * going forward — the other fallbacks matter less over time.
  */
 export function displayName(
+  username: string | null | undefined,
   fullName: string | null | undefined,
   email: string | null | undefined
 ): string {
+  if (username && username.trim()) return username.trim();
   if (fullName && fullName.trim()) return fullName.trim();
   if (email) return email.split("@")[0];
   return "Unnamed";

@@ -3,15 +3,24 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import type { TeamSummary } from "@/lib/teams";
 import { initialsFor } from "@/lib/avatar";
 import { NAV_ITEMS } from "@/lib/nav-items";
+import { SettingsIcon } from "./icons";
 
 export function Sidebar({
   teams,
   currentTeam,
   userDisplayName,
+  userEmail,
+  userAvatarUrl,
+  userColor,
+  username,
 }: {
   teams: TeamSummary[];
-  currentTeam: TeamSummary;
+  currentTeam: TeamSummary | null;
   userDisplayName: string;
+  userEmail: string;
+  userAvatarUrl: string | null;
+  userColor: string;
+  username: string | null;
 }) {
   return (
     <aside className="hidden md:flex w-[236px] flex-shrink-0 border-r border-line/10 bg-surface flex-col p-3.5 gap-1 h-screen sticky top-0 overflow-y-auto styled-scroll">
@@ -55,15 +64,39 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto pt-3 border-t border-line/10">
-        <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-          <span className="w-7 h-7 rounded-full bg-amber flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
-            {initialsFor(userDisplayName)}
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[12.5px] font-semibold truncate">
-              {userDisplayName}
+        <div className="flex items-center gap-1">
+          <Link
+            href={username ? `/u/${username}` : "/settings"}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-surface-2 transition-colors flex-1 min-w-0"
+          >
+            <span
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
+              style={{ background: userColor }}
+            >
+              {userAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                initialsFor(userDisplayName)
+              )}
             </span>
-          </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-semibold truncate">
+                {userDisplayName}
+              </span>
+              <span className="block text-[10.5px] text-ink-faint truncate">
+                {userEmail}
+              </span>
+            </span>
+          </Link>
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-ink transition-colors flex-shrink-0"
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </Link>
         </div>
       </div>
     </aside>

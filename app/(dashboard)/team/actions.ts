@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getMembership } from "@/lib/permissions/membership";
 import { isMaster, ROLES } from "@/lib/permissions/roles";
 import type { RoleId } from "@/lib/permissions/roles";
-import { headers } from "next/headers";
+import { displayName } from "@/lib/avatar";
 
 async function requireMaster(teamId: string) {
   const supabase = await createClient();
@@ -17,57 +16,68 @@ async function requireMaster(teamId: string) {
   return { ok: true as const };
 }
 
-export async function inviteMember(
+/**
+ * Invites an EXISTING VPlanner account to join this team. This does not
+ * create any account — that only ever happens via the Supabase
+ * dashboard, done directly by the project owner. This just sends the
+ * person a real in-app notification they can accept or decline; nothing
+ * about their team membership changes until they respond.
+ */
+export async function inviteExistingUser(
   teamId: string,
-  email: string,
+  userId: string,
   roleIds: RoleId[]
 ) {
   const check = await requireMaster(teamId);
   if (!check.ok) return { error: check.error };
-
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail.includes("@")) return { error: "Enter a valid email." };
 
   const validRoles = roleIds.filter(
     (r) => r !== "master" && ROLES.some((role) => role.id === r)
   );
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
 
-  // Reserve the invite slot first — this is what makes handle_new_user()
-  // able to auto-link them the instant they accept, and what RLS uses to
-  // decide they're a real (if not-yet-active) team member.
-  const { data: teamMember, error: insertError } = await supabase
-    .from("team_members")
-    .insert({ team_id: teamId, invited_email: normalizedEmail, status: "invited" })
+  const [{ data: team }, { data: inviterProfile }] = await Promise.all([
+    supabase.from("teams").select("name").eq("id", teamId).single(),
+    supabase.from("profiles").select("username, full_name, email").eq("id", user.id).single(),
+  ]);
+
+  const { data: invite, error } = await supabase
+    .from("team_invites")
+    .insert({
+      team_id: teamId,
+      invited_user_id: userId,
+      invited_by: user.id,
+      proposed_roles: validRoles,
+    })
     .select("id")
     .single();
 
-  if (insertError) {
-    if (insertError.code === "23505") {
-      return { error: "That email has already been invited to this team." };
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "They already have a pending invite to this team." };
     }
-    return { error: "Couldn't create the invite. Try again." };
+    return { error: "Couldn't send the invite. Try again." };
   }
 
-  if (validRoles.length > 0) {
-    await supabase
-      .from("member_roles")
-      .insert(validRoles.map((role) => ({ team_member_id: teamMember.id, role })));
-  }
+  const inviterName = displayName(inviterProfile?.username, inviterProfile?.full_name, inviterProfile?.email);
 
-  const origin = (await headers()).get("origin") ?? "";
-  const admin = createAdminClient();
-  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-    normalizedEmail,
-    { redirectTo: `${origin}/api/auth/callback?next=/set-password` }
-  );
+  const { error: notifyError } = await supabase.from("notifications").insert({
+    recipient_id: userId,
+    team_invite_id: invite.id,
+    body: `${inviterName} invited you to join ${team?.name ?? "a team"}.`,
+  });
 
-  if (inviteError) {
-    // Roll back the reservation so a failed email doesn't leave a dangling
-    // invite the master can't see or retry cleanly.
-    await supabase.from("team_members").delete().eq("id", teamMember.id);
-    return { error: `Couldn't send the invite email: ${inviteError.message}` };
+  if (notifyError) {
+    // Without the notification, the invite is genuinely undiscoverable
+    // by the invited person — don't leave a dangling invite they'll
+    // never see. Roll back and report the real failure.
+    await supabase.from("team_invites").delete().eq("id", invite.id);
+    return { error: "Couldn't notify them — try again." };
   }
 
   revalidatePath("/team");
@@ -182,6 +192,59 @@ export async function setRoleColor(teamId: string, role: RoleId, color: string) 
   await supabase
     .from("role_colors")
     .upsert({ team_id: teamId, role, color }, { onConflict: "team_id,role" });
+
+  revalidatePath("/team");
+  return { success: true };
+}
+
+/**
+ * Hands ownership of the team to another active member. Restricted to
+ * the CURRENT owner specifically — not just any master — since this is
+ * fundamentally "I'm relinquishing my own ownership," not a general
+ * management action. The new owner automatically gets Master (the
+ * "owner is always master" invariant has to hold immediately, not as a
+ * follow-up step); the outgoing owner keeps whatever roles they already
+ * had and is free to edit their own roles afterward, since they're no
+ * longer owner-locked.
+ */
+export async function transferOwnership(teamId: string, newOwnerUserId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
+
+  const { data: team } = await supabase.from("teams").select("owner_id, name").eq("id", teamId).single();
+  if (!team || team.owner_id !== user.id) {
+    return { error: "Only the current owner can transfer ownership." };
+  }
+  if (newOwnerUserId === user.id) {
+    return { error: "That's already you." };
+  }
+
+  const { data: newOwnerMember } = await supabase
+    .from("team_members")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("user_id", newOwnerUserId)
+    .eq("status", "active")
+    .single();
+
+  if (!newOwnerMember) {
+    return { error: "They need to be an active member of this team first." };
+  }
+
+  const { error } = await supabase.from("teams").update({ owner_id: newOwnerUserId }).eq("id", teamId);
+  if (error) return { error: "Couldn't transfer ownership — try again." };
+
+  await supabase
+    .from("member_roles")
+    .upsert({ team_member_id: newOwnerMember.id, role: "master" }, { onConflict: "team_member_id,role" });
+
+  await supabase.from("notifications").insert({
+    recipient_id: newOwnerUserId,
+    body: `You're now the owner of ${team.name}.`,
+  });
 
   revalidatePath("/team");
   return { success: true };

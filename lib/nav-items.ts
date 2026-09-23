@@ -3,5 +3,4 @@ export const NAV_ITEMS = [
   { href: "/videos", label: "Long videos", icon: "▶", available: true },
   { href: "/calendar", label: "Calendar", icon: "▦", available: false },
   { href: "/team", label: "Team", icon: "◍", available: true },
-  { href: "/settings", label: "Settings", icon: "⚙", available: false },
 ] as const;

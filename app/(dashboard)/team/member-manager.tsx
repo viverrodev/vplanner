@@ -11,6 +11,7 @@ import { initialsFor } from "@/lib/avatar";
 export type MemberRow = {
   teamMemberId: string;
   userId: string | null;
+  username: string | null;
   name: string;
   email: string;
   status: "invited" | "active";
@@ -69,15 +70,32 @@ export function MemberManager({
   return (
     <div className="border-b border-line/10 last:border-none">
       <div className="flex items-center gap-3 py-3 flex-wrap">
-        <span
-          className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-          style={{ background: member.color }}
-        >
-          {initialsFor(member.name)}
-        </span>
+        {member.username ? (
+          <a href={`/u/${member.username}`} className="flex-shrink-0">
+            <span
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:opacity-80 transition-opacity"
+              style={{ background: member.color }}
+            >
+              {initialsFor(member.name)}
+            </span>
+          </a>
+        ) : (
+          <span
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+            style={{ background: member.color }}
+          >
+            {initialsFor(member.name)}
+          </span>
+        )}
         <div className="min-w-0">
           <div className="text-[13.5px] font-semibold flex items-center gap-1.5">
-            {member.name}
+            {member.username ? (
+              <a href={`/u/${member.username}`} className="hover:text-amber transition-colors">
+                {member.name}
+              </a>
+            ) : (
+              member.name
+            )}
             {member.isOwner && <span className="text-amber text-[11px]">★ Owner</span>}
             {member.status === "invited" && (
               <span className="text-[10px] font-bold uppercase tracking-wide text-ink-faint bg-surface-2 px-1.5 py-0.5 rounded">

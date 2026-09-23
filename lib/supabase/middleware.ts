@@ -36,6 +36,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Documented Supabase gotcha on platforms like Vercel: if a response
+  // carrying a refreshed session cookie gets cached by the edge
+  // network, later requests can see stale auth state until something
+  // forces a fresh check — which is exactly the "works, then goes
+  // stale until I log out and back in" symptom. This stops any layer
+  // from caching an auth-bearing response at all.
+  response.headers.set("Cache-Control", "private, no-store");
+
   const isPublicRoute =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/api/auth");
@@ -44,13 +52,17 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return redirect;
   }
 
   if (user && request.nextUrl.pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set("Cache-Control", "private, no-store");
+    return redirect;
   }
 
   return response;

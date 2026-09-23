@@ -1,0 +1,125 @@
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/get-user";
+import { colorForId, initialsFor } from "@/lib/avatar";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("full_name, username")
+    .ilike("username", username)
+    .maybeSingle();
+  if (!data) return { title: "Profile" };
+  return { title: data.full_name || `@${data.username}` };
+}
+
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}) {
+  const { username } = await params;
+  const supabase = await createClient();
+  const currentUser = await getCachedUser();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, bio, avatar_url, created_at, teams_visible")
+    .ilike("username", username)
+    .maybeSingle();
+
+  if (!profile) notFound();
+
+  const isSelf = profile.id === currentUser?.id;
+
+  const { data: visibleTeams } = await supabase.rpc("get_visible_teams", {
+    target_user_id: profile.id,
+  });
+
+  const name = profile.full_name || profile.username;
+  const color = colorForId(profile.id);
+  const joined = new Date(profile.created_at).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  // Distinguish "no teams" from "hidden" so the message is honest either way.
+  const teamsHiddenFromViewer =
+    !profile.teams_visible && !isSelf && (visibleTeams ?? []).length === 0;
+
+  return (
+    <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-2xl mx-auto space-y-6">
+      <div className="rounded-2xl border border-line/10 bg-surface p-6 sm:p-8">
+        <div className="flex items-start gap-5 flex-wrap">
+          <span
+            className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 overflow-hidden"
+            style={{ background: color }}
+          >
+            {profile.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              initialsFor(name)
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-display text-2xl font-semibold">{name}</h1>
+            <p className="text-[13px] text-ink-faint mb-2">@{profile.username}</p>
+            {profile.bio && (
+              <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-md">{profile.bio}</p>
+            )}
+            <p className="text-[11.5px] text-ink-faint mt-3">Joined {joined}</p>
+          </div>
+          {isSelf && (
+            <a
+              href="/settings"
+              className="text-[12px] font-semibold text-amber hover:brightness-110 flex-shrink-0"
+            >
+              Edit profile
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-line/10 bg-surface p-6 sm:p-8">
+        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-4">
+          Teams
+        </h2>
+        {teamsHiddenFromViewer ? (
+          <p className="text-[13px] text-ink-faint">This person&rsquo;s teams are private.</p>
+        ) : (visibleTeams ?? []).length === 0 ? (
+          <p className="text-[13px] text-ink-faint">Not on any teams yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {(visibleTeams ?? []).map((t: { id: string; name: string; color: string; logo_url: string | null }) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-3 rounded-lg border border-line/10 px-3.5 py-2.5"
+              >
+                <span
+                  className="w-9 h-9 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-[11px] font-bold"
+                  style={{ background: t.color }}
+                >
+                  {t.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    t.name.slice(0, 2).toUpperCase()
+                  )}
+                </span>
+                <span className="text-[13.5px] font-semibold">{t.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

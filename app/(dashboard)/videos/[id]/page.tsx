@@ -21,6 +21,7 @@ import { TypeThemeEditor } from "./type-theme-editor";
 import { NotesPanel } from "./notes-panel";
 import { DeleteProjectButton } from "./delete-project-button";
 import { postComment } from "./actions";
+import type { Metadata } from "next";
 
 const TABS: PipelineStage[] = [
   "ideate",
@@ -31,6 +32,21 @@ const TABS: PipelineStage[] = [
   "package",
   "publish",
 ];
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("long_video_projects")
+    .select("title")
+    .eq("id", id)
+    .single();
+  return { title: data?.title ?? "Project" };
+}
 
 export default async function ProjectDetailPage({
   params,
@@ -73,7 +89,7 @@ export default async function ProjectDetailPage({
         .order("position"),
       supabase
         .from("team_members")
-        .select("id, user_id, profiles(full_name, email), member_roles(role)")
+        .select("id, user_id, profiles(username, full_name, email, avatar_url), member_roles(role)")
         .eq("team_id", currentTeam.id)
         .eq("status", "active"),
       supabase
@@ -101,12 +117,12 @@ export default async function ProjectDetailPage({
   const memberColors = ["#E8630D", "#178C7C", "#3159C9", "#6B4FD6", "#B84070", "#B4890E", "#2B9757"];
   const membersById = new Map(
     (teamMembers ?? []).map((m, i) => {
-      const profile = m.profiles as unknown as { full_name: string | null; email: string | null } | null;
+      const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null; avatar_url: string | null } | null;
       const roles = (m.member_roles ?? []).map((r: { role: RoleId }) => r.role);
       return [
         m.id,
         {
-          name: displayName(profile?.full_name, profile?.email),
+          name: displayName(profile?.username, profile?.full_name, profile?.email),
           roles,
           color: memberColors[i % memberColors.length],
         },
@@ -116,10 +132,10 @@ export default async function ProjectDetailPage({
 
   const peopleByUserId = new Map(
     (teamMembers ?? []).map((m) => {
-      const profile = m.profiles as unknown as { full_name: string | null; email: string | null } | null;
+      const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null; avatar_url: string | null } | null;
       const roles = (m.member_roles ?? []).map((r: { role: RoleId }) => r.role);
-      const name = displayName(profile?.full_name, profile?.email);
-      return [m.user_id, { name, roles, color: colorForId(m.user_id) }];
+      const name = displayName(profile?.username, profile?.full_name, profile?.email);
+      return [m.user_id, { name, roles, color: colorForId(m.user_id), avatarUrl: profile?.avatar_url ?? null }];
     })
   );
 
@@ -396,6 +412,7 @@ export default async function ProjectDetailPage({
               id: c.id,
               name: person?.name ?? "Unknown",
               avatarColor: person?.color ?? "#999",
+              avatarUrl: person?.avatarUrl ?? null,
               roles: (person?.roles ?? []).map((r) => ({
                 name: ROLES.find((role) => role.id === r)?.name ?? r,
                 color: roleColors[r],

@@ -1,10 +1,51 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { login } from "./actions";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, undefined);
+  // Defaults to "checking" rather than showing the form immediately —
+  // a hash fragment (used by invite links) can only ever be read
+  // client-side, so the server has no way to know in advance whether
+  // this load is actually a real sign-in visit or an invite redirect
+  // about to happen. Showing a neutral loading state here (instead of
+  // the sign-in form) is what stops the wrong page from flashing for
+  // that split second before AuthHashHandler redirects it away.
+  const [checkingForInvite, setCheckingForInvite] = useState(true);
+  const [mode, setMode] = useState<"signin" | "forgot">("signin");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCheckingForInvite(window.location.hash.includes("access_token"));
+  }, []);
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault();
+    setResetError(null);
+    setResetPending(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetPending(false);
+    // Deliberately vague either way — never confirm/deny whether an
+    // email has an account, same reasoning as the sign-in error.
+    if (error) setResetError("Couldn't send the reset email — try again.");
+    else setResetSent(true);
+  }
+
+  if (checkingForInvite) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-sm text-ink-faint">Loading…</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
@@ -14,52 +55,118 @@ export default function LoginPage() {
             VPlanner
           </div>
           <h1 className="font-display text-3xl font-semibold mt-3">
-            Sign in
+            {mode === "signin" ? "Sign in" : "Reset your password"}
           </h1>
           <p className="text-sm text-ink-soft mt-1.5">
-            Accounts are created by your team&rsquo;s owner. No public
-            sign-up.
+            {mode === "signin"
+              ? "Accounts are created by your team\u2019s owner. No public sign-up."
+              : "Enter your email and we\u2019ll send you a reset link."}
           </p>
         </div>
 
-        <form action={formAction} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold opacity-70 mb-1.5">
-              Email
-            </label>
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold opacity-70 mb-1.5">
-              Password
-            </label>
-            <input
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
-            />
-          </div>
+        {mode === "signin" ? (
+          <>
+            <form action={formAction} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold opacity-70 mb-1.5">
+                  Email
+                </label>
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold opacity-70">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      setResetSent(false);
+                      setResetError(null);
+                    }}
+                    className="text-xs font-semibold text-amber"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
+                />
+              </div>
 
-          {state?.error && (
-            <p className="text-sm text-red font-medium">{state.error}</p>
-          )}
+              {state?.error && (
+                <p className="text-sm text-red font-medium">{state.error}</p>
+              )}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-lg bg-amber text-white font-semibold py-2.5 text-sm disabled:opacity-50"
-          >
-            {pending ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+              <button
+                type="submit"
+                disabled={pending}
+                className="w-full rounded-lg bg-amber text-white font-semibold py-2.5 text-sm disabled:opacity-50"
+              >
+                {pending ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+          </>
+        ) : resetSent ? (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-soft leading-relaxed">
+              If an account exists for <span className="font-semibold text-ink">{resetEmail}</span>,
+              a reset link is on its way — check your inbox.
+            </p>
+            <button
+              onClick={() => setMode("signin")}
+              className="text-sm font-semibold text-amber"
+            >
+              ← Back to sign in
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold opacity-70 mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                autoComplete="email"
+                className="w-full rounded-lg border border-line/15 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber"
+              />
+            </div>
+
+            {resetError && (
+              <p className="text-sm text-red font-medium">{resetError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={resetPending}
+              className="w-full rounded-lg bg-amber text-white font-semibold py-2.5 text-sm disabled:opacity-50"
+            >
+              {resetPending ? "Sending…" : "Send reset link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("signin")}
+              className="w-full text-sm font-semibold text-ink-soft"
+            >
+              ← Back to sign in
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );

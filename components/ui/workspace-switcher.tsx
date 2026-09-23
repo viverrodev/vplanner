@@ -40,7 +40,7 @@ export function WorkspaceSwitcher({
   currentTeam,
 }: {
   teams: TeamSummary[];
-  currentTeam: TeamSummary;
+  currentTeam: TeamSummary | null;
 }) {
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -55,6 +55,22 @@ export function WorkspaceSwitcher({
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  if (!currentTeam) {
+    return (
+      <Link
+        href="/teams/new"
+        className="w-full flex items-center gap-2.5 rounded-lg border border-dashed border-line/25 px-2.5 py-2 text-left hover:border-amber transition-colors"
+      >
+        <span className="w-7 h-7 rounded-md flex items-center justify-center text-[15px] font-bold text-ink-faint flex-shrink-0 border border-dashed border-line/25">
+          +
+        </span>
+        <span className="text-[13px] font-semibold text-ink-soft">
+          Create your team
+        </span>
+      </Link>
+    );
+  }
 
   return (
     <div className="relative" ref={ref}>

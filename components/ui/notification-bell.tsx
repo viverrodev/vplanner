@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { markNotificationRead, markAllNotificationsRead } from "@/app/(dashboard)/notification-actions";
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+  respondToTeamInvite,
+} from "@/app/(dashboard)/notification-actions";
 import { relativeTime } from "@/lib/relative-time";
 import { BellIcon } from "./icons";
+import { useToast } from "./toast-provider";
 
 export type NotificationItem = {
   id: string;
@@ -13,7 +18,16 @@ export type NotificationItem = {
   stage: string | null;
   is_read: boolean;
   created_at: string;
+  team_invite_id: string | null;
+  team_invites: { status: string } | { status: string }[] | null;
 };
+
+function inviteStatus(n: NotificationItem): string | null {
+  if (!n.team_invite_id) return null;
+  const ti = n.team_invites;
+  if (!ti) return null;
+  return Array.isArray(ti) ? ti[0]?.status ?? null : ti.status;
+}
 
 export function NotificationBell({
   notifications,
@@ -22,8 +36,10 @@ export function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const [respondingId, setRespondingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const toast = useToast();
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
@@ -35,12 +51,27 @@ export function NotificationBell({
   }, []);
 
   function handleClick(n: NotificationItem) {
+    if (n.team_invite_id) return; // handled by its own Accept/Decline buttons
     setOpen(false);
     startTransition(() => {
       markNotificationRead(n.id);
     });
     if (n.project_id) {
       router.push(n.stage ? `/videos/${n.project_id}?tab=${n.stage}` : `/videos/${n.project_id}`);
+    }
+  }
+
+  async function respond(n: NotificationItem, accept: boolean) {
+    if (!n.team_invite_id) return;
+    setRespondingId(n.id);
+    const result = await respondToTeamInvite(n.team_invite_id, accept);
+    setRespondingId(null);
+    if (result?.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(accept ? "You joined the team" : "Invite declined");
+      markNotificationRead(n.id);
+      router.refresh();
     }
   }
 
@@ -78,27 +109,62 @@ export function NotificationBell({
                 Nothing yet.
               </div>
             ) : (
-              notifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className="w-full text-left flex gap-2.5 px-4 py-3 border-b border-line/10 last:border-none hover:bg-surface-2 transition-colors"
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                      n.is_read ? "bg-transparent" : "bg-amber"
+              notifications.map((n) => {
+                const status = inviteStatus(n);
+                const isPendingInvite = n.team_invite_id && status === "pending";
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleClick(n)}
+                    className={`flex gap-2.5 px-4 py-3 border-b border-line/10 last:border-none transition-colors ${
+                      n.team_invite_id ? "" : "hover:bg-surface-2 cursor-pointer"
                     }`}
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-[12.5px] leading-snug text-ink">
-                      {n.body}
-                    </span>
-                    <span className="block text-[10.5px] text-ink-soft mt-1">
-                      {relativeTime(n.created_at)}
-                    </span>
-                  </span>
-                </button>
-              ))
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                        n.is_read ? "bg-transparent" : "bg-amber"
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[12.5px] leading-snug text-ink">
+                        {n.body}
+                      </span>
+                      <span className="block text-[10.5px] text-ink-soft mt-1">
+                        {relativeTime(n.created_at)}
+                      </span>
+                      {isPendingInvite && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              respond(n, true);
+                            }}
+                            disabled={respondingId === n.id}
+                            className="rounded-md bg-amber text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              respond(n, false);
+                            }}
+                            disabled={respondingId === n.id}
+                            className="rounded-md border border-line/15 text-ink-soft text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+                      {n.team_invite_id && status && status !== "pending" && (
+                        <span className="inline-block mt-1.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+                          {status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

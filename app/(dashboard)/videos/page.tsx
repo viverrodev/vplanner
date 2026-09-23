@@ -13,6 +13,9 @@ import { colorForId } from "@/lib/avatar";
 import { GridIcon, ListIcon } from "@/components/ui/icons";
 import { setViewMode } from "./view-mode-actions";
 import { VIEW_MODE_COOKIE } from "@/lib/view-mode";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Long videos" };
 
 export default async function VideosPage({
   searchParams,

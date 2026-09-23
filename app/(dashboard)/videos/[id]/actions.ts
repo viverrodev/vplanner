@@ -380,21 +380,21 @@ export async function postComment(
   const [{ data: teamMembers }, { data: authorProfile }] = await Promise.all([
     supabase
       .from("team_members")
-      .select("user_id, profiles(full_name, email), member_roles(role)")
+      .select("user_id, profiles(username, full_name, email), member_roles(role)")
       .eq("team_id", project.team_id)
       .eq("status", "active"),
     supabase
       .from("profiles")
-      .select("full_name, email")
+      .select("username, full_name, email")
       .eq("id", user.id)
       .single(),
   ]);
 
   const members = (teamMembers ?? []).map((m) => {
-    const profile = m.profiles as unknown as { full_name: string | null; email: string | null } | null;
+    const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null } | null;
     return {
       userId: m.user_id as string,
-      name: displayName(profile?.full_name, profile?.email),
+      name: displayName(profile?.username, profile?.full_name, profile?.email),
       roles: (m.member_roles ?? []).map((r: { role: RoleId }) => r.role),
     };
   });
@@ -407,7 +407,7 @@ export async function postComment(
   recipientIds.delete(user.id);
 
   if (recipientIds.size > 0) {
-    const authorName = displayName(authorProfile?.full_name, authorProfile?.email);
+    const authorName = displayName(authorProfile?.username, authorProfile?.full_name, authorProfile?.email);
     const snippet = body.length > 80 ? `${body.slice(0, 80)}…` : body;
     await supabase.from("notifications").insert(
       Array.from(recipientIds).map((recipient_id) => ({

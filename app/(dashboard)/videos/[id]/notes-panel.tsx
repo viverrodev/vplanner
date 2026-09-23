@@ -26,6 +26,7 @@ export type CommentDisplay = {
   id: string;
   name: string;
   avatarColor: string;
+  avatarUrl: string | null;
   roles: { name: string; color: string }[];
   createdAt: string;
   body: string;
@@ -145,10 +146,15 @@ export function NotesPanel({
         {comments.map((c) => (
           <div key={c.id} className="relative flex gap-2 border-b border-line/10 pb-2.5 pr-5 last:border-none">
             <span
-              className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 mt-0.5"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 mt-0.5 overflow-hidden"
               style={{ background: c.avatarColor }}
             >
-              {initialsFor(c.name)}
+              {c.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                initialsFor(c.name)
+              )}
             </span>
             <div className="text-[12.5px] min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">

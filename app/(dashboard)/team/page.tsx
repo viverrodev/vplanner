@@ -8,9 +8,13 @@ import { colorForId, displayName, initialsFor } from "@/lib/avatar";
 import { getCachedUser } from "@/lib/supabase/get-user";
 import { TeamLogoUploader } from "./team-logo-uploader";
 import { TeamNameEditor } from "./team-name-editor";
-import { InviteForm } from "./invite-form";
+import { InviteSearch } from "./invite-search";
 import { MemberManager, type MemberRow } from "./member-manager";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Team" };
 import { RoleColorPicker } from "./role-color-picker";
+import { TransferOwnership } from "./transfer-ownership";
 import { YouTubeIcon, TikTokIcon, InstagramIcon, FacebookIcon } from "@/components/ui/platform-icons";
 
 const PLATFORMS = [
@@ -35,7 +39,7 @@ export default async function TeamPage() {
     supabase.from("teams").select("id, name, logo_url, color, owner_id").eq("id", currentTeam.id).single(),
     supabase
       .from("team_members")
-      .select("id, user_id, invited_email, status, profiles(full_name, email), member_roles(role)")
+      .select("id, user_id, invited_email, status, profiles(username, full_name, email), member_roles(role)")
       .eq("team_id", currentTeam.id)
       .order("created_at"),
     supabase.from("connected_accounts").select("platform, status, account_label").eq("team_id", currentTeam.id),
@@ -44,12 +48,13 @@ export default async function TeamPage() {
   const roleColors = await getRoleColors(supabase, currentTeam.id);
 
   const memberRows: MemberRow[] = (members ?? []).map((m) => {
-    const profile = m.profiles as unknown as { full_name: string | null; email: string | null } | null;
+    const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null } | null;
     const email = profile?.email ?? m.invited_email;
     return {
       teamMemberId: m.id,
       userId: m.user_id,
-      name: displayName(profile?.full_name, email),
+      username: profile?.username ?? null,
+      name: displayName(profile?.username, profile?.full_name, email),
       email,
       status: m.status as "invited" | "active",
       roles: (m.member_roles ?? []).map((r: { role: RoleId }) => r.role),
@@ -121,8 +126,8 @@ export default async function TeamPage() {
 
         {userIsMaster && (
           <div className="mt-5 pt-5 border-t border-line/10">
-            <h3 className="text-[12px] font-bold text-ink-soft mb-3">Invite someone</h3>
-            <InviteForm teamId={currentTeam.id} />
+            <h3 className="text-[12px] font-bold text-ink-soft mb-3">Invite to this team</h3>
+            <InviteSearch teamId={currentTeam.id} />
           </div>
         )}
       </section>
@@ -188,6 +193,25 @@ export default async function TeamPage() {
           })}
         </div>
       </section>
+
+      {currentUser?.id === team?.owner_id && (
+        <section className="rounded-xl border border-red/20 bg-red/5 p-6">
+          <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-red mb-1">
+            Transfer ownership
+          </h2>
+          <p className="text-[12px] text-ink-soft mb-4">
+            Hand this team over to someone else permanently. They become the
+            owner and Master; you keep your current roles but stop being
+            the owner.
+          </p>
+          <TransferOwnership
+            teamId={currentTeam.id}
+            candidates={memberRows
+              .filter((m) => m.userId && m.userId !== currentUser?.id && m.status === "active")
+              .map((m) => ({ userId: m.userId as string, name: m.name }))}
+          />
+        </section>
+      )}
     </div>
   );
 }

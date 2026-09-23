@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
+import { AuthHashHandler } from "@/components/ui/auth-hash-handler";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -21,8 +22,20 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VPlanner",
-  description: "Content production management for your team.",
+  title: {
+    default: "VPlanner",
+    template: "%s · VPlanner",
+  },
+  description: "Internal content production dashboard.",
+  // This app is invite-only and has no public content — nothing here
+  // should ever show up in search results, regardless of auth state.
+  // Individual pages can override this, but none currently need to.
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
 };
 
 export default function RootLayout({
@@ -42,7 +55,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-body antialiased">{children}</body>
+      <body className="font-body antialiased">
+        <AuthHashHandler />
+        {children}
+      </body>
     </html>
   );
 }
