@@ -86,7 +86,9 @@ export async function respondToTeamInvite(inviteId: string, accept: boolean) {
       .single();
 
     if (memberError || !teamMember) {
-      return { error: "Couldn't join the team — try again." };
+      return {
+        error: `Couldn't join the team: ${memberError?.message ?? "no row returned"} (code: ${memberError?.code ?? "none"})`,
+      };
     }
 
     if (invite.proposed_roles?.length > 0) {
