@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { STAGE_ORDER, STAGE_LABELS } from "@/modules/long-videos/lib/stages";
+import { STAGE_ORDER, STAGE_LABELS, stageColor } from "@/modules/long-videos/lib/stages";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
 import { isMaster, ROLES } from "@/lib/permissions/roles";
@@ -262,6 +262,12 @@ export async function advanceStage(projectId: string) {
         recipient_id,
         project_id: projectId,
         stage: next,
+        kind: "stage_ready",
+        metadata: {
+          projectTitle: project.title,
+          stageLabel: STAGE_LABELS[next],
+          stageColor: stageColor(next),
+        },
         body: `"${project.title}" moved into ${STAGE_LABELS[next]} — you have work to do.`,
       }))
     );
@@ -304,6 +310,12 @@ export async function assignMember(
       recipient_id: member.user_id,
       project_id: projectId,
       stage,
+      kind: "stage_assignment",
+      metadata: {
+        projectTitle: project.title,
+        stageLabel: STAGE_LABELS[stage],
+        stageColor: stageColor(stage),
+      },
       body: `You've been tagged on "${project.title}" for ${STAGE_LABELS[stage]}.`,
     });
   }
@@ -385,7 +397,7 @@ export async function postComment(
       .eq("status", "active"),
     supabase
       .from("profiles")
-      .select("username, full_name, email")
+      .select("username, full_name, email, avatar_url")
       .eq("id", user.id)
       .single(),
   ]);
@@ -414,6 +426,14 @@ export async function postComment(
         recipient_id,
         project_id: projectId,
         stage,
+        kind: "mention",
+        metadata: {
+          actor: { name: authorName, avatarUrl: authorProfile?.avatar_url ?? null },
+          projectTitle: project.title,
+          stageLabel: STAGE_LABELS[stage],
+          stageColor: stageColor(stage),
+          snippet,
+        },
         body: `${authorName} mentioned you in ${STAGE_LABELS[stage]} on "${project.title}": "${snippet}"`,
       }))
     );

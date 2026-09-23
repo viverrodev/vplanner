@@ -12,6 +12,7 @@ export type MemberRow = {
   teamMemberId: string;
   userId: string | null;
   username: string | null;
+  avatarUrl: string | null;
   name: string;
   email: string;
   status: "invited" | "active";
@@ -73,18 +74,28 @@ export function MemberManager({
         {member.username ? (
           <a href={`/u/${member.username}`} className="flex-shrink-0">
             <span
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:opacity-80 transition-opacity"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:opacity-80 transition-opacity overflow-hidden"
               style={{ background: member.color }}
             >
-              {initialsFor(member.name)}
+              {member.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                initialsFor(member.name)
+              )}
             </span>
           </a>
         ) : (
           <span
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
             style={{ background: member.color }}
           >
-            {initialsFor(member.name)}
+            {member.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              initialsFor(member.name)
+            )}
           </span>
         )}
         <div className="min-w-0">

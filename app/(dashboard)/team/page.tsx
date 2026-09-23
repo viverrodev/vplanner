@@ -9,12 +9,14 @@ import { getCachedUser } from "@/lib/supabase/get-user";
 import { TeamLogoUploader } from "./team-logo-uploader";
 import { TeamNameEditor } from "./team-name-editor";
 import { InviteSearch } from "./invite-search";
+import { PendingInvitesList } from "./pending-invites-list";
 import { MemberManager, type MemberRow } from "./member-manager";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Team" };
 import { RoleColorPicker } from "./role-color-picker";
 import { TransferOwnership } from "./transfer-ownership";
+import { DeleteTeamButton } from "./delete-team-button";
 import { YouTubeIcon, TikTokIcon, InstagramIcon, FacebookIcon } from "@/components/ui/platform-icons";
 
 const PLATFORMS = [
@@ -35,25 +37,33 @@ export default async function TeamPage() {
   const userIsMaster = isMaster(membership?.roles ?? []);
   const currentUser = await getCachedUser();
 
-  const [{ data: team }, { data: members }, { data: connections }] = await Promise.all([
+  const [{ data: team }, { data: members }, { data: connections }, { data: pendingInvites }] = await Promise.all([
     supabase.from("teams").select("id, name, logo_url, color, owner_id").eq("id", currentTeam.id).single(),
     supabase
       .from("team_members")
-      .select("id, user_id, invited_email, status, profiles(username, full_name, email), member_roles(role)")
+      .select("id, user_id, invited_email, status, profiles(username, full_name, email, avatar_url), member_roles(role)")
       .eq("team_id", currentTeam.id)
       .order("created_at"),
     supabase.from("connected_accounts").select("platform, status, account_label").eq("team_id", currentTeam.id),
+    supabase
+      .from("team_invites")
+      .select("id, proposed_roles, expires_at, created_at, profiles!team_invites_invited_user_id_fkey(username, full_name, email)")
+      .eq("team_id", currentTeam.id)
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false }),
   ]);
 
   const roleColors = await getRoleColors(supabase, currentTeam.id);
 
   const memberRows: MemberRow[] = (members ?? []).map((m) => {
-    const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null } | null;
+    const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null; avatar_url: string | null } | null;
     const email = profile?.email ?? m.invited_email;
     return {
       teamMemberId: m.id,
       userId: m.user_id,
       username: profile?.username ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
       name: displayName(profile?.username, profile?.full_name, email),
       email,
       status: m.status as "invited" | "active",
@@ -108,16 +118,59 @@ export default async function TeamPage() {
                 isSelf={m.userId === currentUser?.id}
               />
             ) : (
-              <div key={m.teamMemberId} className="flex items-center gap-3 py-3 border-b border-line/10 last:border-none">
-                <span
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                  style={{ background: m.color }}
-                >
-                  {initialsFor(m.name)}
-                </span>
-                <div>
-                  <div className="text-[13.5px] font-semibold">{m.name}</div>
+              <div key={m.teamMemberId} className="flex items-center gap-3 py-3 border-b border-line/10 last:border-none flex-wrap">
+                {m.username ? (
+                  <a href={`/u/${m.username}`} className="flex-shrink-0">
+                    <span
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white overflow-hidden hover:opacity-80 transition-opacity"
+                      style={{ background: m.color }}
+                    >
+                      {m.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        initialsFor(m.name)
+                      )}
+                    </span>
+                  </a>
+                ) : (
+                  <span
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
+                    style={{ background: m.color }}
+                  >
+                    {m.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      initialsFor(m.name)
+                    )}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13.5px] font-semibold flex items-center gap-1.5">
+                    {m.name}
+                    {m.isOwner && <span className="text-amber text-[11px]">★ Owner</span>}
+                  </div>
                   <div className="text-[11.5px] text-ink-faint">{m.email}</div>
+                </div>
+                <div className="flex flex-wrap gap-1 w-full sm:w-auto">
+                  {m.roles.length === 0 ? (
+                    <span className="text-[10.5px] text-ink-faint">No roles</span>
+                  ) : (
+                    m.roles.map((r) => {
+                      const c = roleColors[r] ?? "#999";
+                      const roleName = ROLES.find((role) => role.id === r)?.name ?? r;
+                      return (
+                        <span
+                          key={r}
+                          className="text-[10.5px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                        >
+                          {roleName}
+                        </span>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )
@@ -127,6 +180,22 @@ export default async function TeamPage() {
         {userIsMaster && (
           <div className="mt-5 pt-5 border-t border-line/10">
             <h3 className="text-[12px] font-bold text-ink-soft mb-3">Invite to this team</h3>
+            <PendingInvitesList
+              teamId={currentTeam.id}
+              invites={(pendingInvites ?? []).map((inv) => {
+                const p = inv.profiles as unknown as {
+                  username: string | null;
+                  full_name: string | null;
+                  email: string | null;
+                } | null;
+                return {
+                  id: inv.id,
+                  name: displayName(p?.username, p?.full_name, p?.email),
+                  proposedRoles: (inv.proposed_roles ?? []) as RoleId[],
+                  expiresAt: inv.expires_at,
+                };
+              })}
+            />
             <InviteSearch teamId={currentTeam.id} />
           </div>
         )}
@@ -200,16 +269,29 @@ export default async function TeamPage() {
             Transfer ownership
           </h2>
           <p className="text-[12px] text-ink-soft mb-4">
-            Hand this team over to someone else permanently. They become the
-            owner and Master; you keep your current roles but stop being
-            the owner.
+            Send someone a request to become this team&rsquo;s owner. Nothing
+            changes until they accept — you stay the owner until then.
           </p>
           <TransferOwnership
             teamId={currentTeam.id}
             candidates={memberRows
               .filter((m) => m.userId && m.userId !== currentUser?.id && m.status === "active")
-              .map((m) => ({ userId: m.userId as string, name: m.name }))}
+              .map((m) => ({ userId: m.userId as string, name: m.name, avatarUrl: m.avatarUrl }))}
           />
+
+          <div className="mt-5 pt-5 border-t border-red/20">
+            <h3 className="text-[12px] font-bold text-red mb-1">Delete team</h3>
+            <p className="text-[12px] text-ink-soft mb-3">
+              Permanent — every project, comment, and member goes with it.
+            </p>
+            <DeleteTeamButton
+              teamId={currentTeam.id}
+              teamName={currentTeam.name}
+              connectedPlatforms={(connections ?? [])
+                .filter((c) => c.status === "connected")
+                .map((c) => c.platform)}
+            />
+          </div>
         </section>
       )}
     </div>

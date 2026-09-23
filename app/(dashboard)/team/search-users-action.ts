@@ -28,7 +28,8 @@ export async function searchInvitableUsers(
       .from("team_invites")
       .select("invited_user_id")
       .eq("team_id", teamId)
-      .eq("status", "pending"),
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString()),
   ]);
 
   const excludeIds = new Set(

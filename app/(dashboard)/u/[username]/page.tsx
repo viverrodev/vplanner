@@ -43,6 +43,22 @@ export default async function PublicProfilePage({
     target_user_id: profile.id,
   });
 
+  // get_visible_teams already includes any team the viewer genuinely
+  // shares with this person, regardless of their privacy toggle (same
+  // reasoning as everywhere else: if you're already teammates, you
+  // already know) — so the intersection with the viewer's own teams is
+  // always accurate here, never affected by the other person's setting.
+  let commonTeams: { id: string; name: string; color: string; logo_url: string | null }[] = [];
+  if (currentUser && !isSelf) {
+    const { data: myMemberships } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("user_id", currentUser.id)
+      .eq("status", "active");
+    const myTeamIds = new Set((myMemberships ?? []).map((m) => m.team_id));
+    commonTeams = (visibleTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id));
+  }
+
   const name = profile.full_name || profile.username;
   const color = colorForId(profile.id);
   const joined = new Date(profile.created_at).toLocaleDateString("en-US", {
@@ -87,6 +103,39 @@ export default async function PublicProfilePage({
           )}
         </div>
       </div>
+
+      {!isSelf && currentUser && (
+        <div className="rounded-2xl border border-line/10 bg-surface p-6 sm:p-8">
+          <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-4">
+            Common teams
+          </h2>
+          {commonTeams.length === 0 ? (
+            <p className="text-[13px] text-ink-faint">No teams in common.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {commonTeams.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-3 rounded-lg border border-line/10 px-3.5 py-2.5"
+                >
+                  <span
+                    className="w-9 h-9 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-[11px] font-bold"
+                    style={{ background: t.color }}
+                  >
+                    {t.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      t.name.slice(0, 2).toUpperCase()
+                    )}
+                  </span>
+                  <span className="text-[13.5px] font-semibold">{t.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-2xl border border-line/10 bg-surface p-6 sm:p-8">
         <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-4">

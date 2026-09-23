@@ -33,7 +33,7 @@ export default async function DashboardLayout({
 
   const { data: notifications } = await supabase
     .from("notifications")
-    .select("id, body, project_id, stage, is_read, created_at, team_invite_id, team_invites(status)")
+    .select("id, body, project_id, stage, is_read, created_at, kind, metadata, team_invite_id, team_invites(status), ownership_transfer_id, ownership_transfer_requests(status)")
     .eq("recipient_id", user!.id)
     .order("created_at", { ascending: false })
     .limit(25);
@@ -68,7 +68,7 @@ export default async function DashboardLayout({
                 VPlanner
               </span>
               <div className="flex-1" />
-              <NotificationBell notifications={notifications ?? []} />
+              <NotificationBell notifications={notifications ?? []} userId={user!.id} />
               <ThemeToggle />
               <form action={signOut}>
                 <button

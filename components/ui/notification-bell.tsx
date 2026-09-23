@@ -6,10 +6,17 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   respondToTeamInvite,
+  respondToOwnershipTransfer,
 } from "@/app/(dashboard)/notification-actions";
 import { relativeTime } from "@/lib/relative-time";
 import { BellIcon } from "./icons";
 import { useToast } from "./toast-provider";
+import { createClient } from "@/lib/supabase/client";
+import { initialsFor } from "@/lib/avatar";
+
+type Actor = { name: string; avatarUrl: string | null };
+type Team = { name: string; logoUrl: string | null; color: string };
+type RoleMeta = { name: string; color: string };
 
 export type NotificationItem = {
   id: string;
@@ -20,19 +27,190 @@ export type NotificationItem = {
   created_at: string;
   team_invite_id: string | null;
   team_invites: { status: string } | { status: string }[] | null;
+  ownership_transfer_id: string | null;
+  ownership_transfer_requests: { status: string } | { status: string }[] | null;
+  kind: string | null;
+  metadata: {
+    actor?: Actor;
+    team?: Team;
+    roles?: RoleMeta[];
+    projectTitle?: string;
+    stageLabel?: string;
+    stageColor?: string;
+    snippet?: string;
+    accepted?: boolean;
+  } | null;
 };
 
-function inviteStatus(n: NotificationItem): string | null {
-  if (!n.team_invite_id) return null;
-  const ti = n.team_invites;
-  if (!ti) return null;
-  return Array.isArray(ti) ? ti[0]?.status ?? null : ti.status;
+function actionableStatus(n: NotificationItem): string | null {
+  const rel = n.team_invite_id ? n.team_invites : n.ownership_transfer_id ? n.ownership_transfer_requests : null;
+  if (!rel) return null;
+  return Array.isArray(rel) ? rel[0]?.status ?? null : rel.status;
+}
+
+// Small circular avatar for the notification's primary subject — a
+// person's real photo when there is one, a team logo when the
+// notification is fundamentally about the team, or a colored
+// initial/stage-dot fallback. Returns null for plain/legacy
+// notifications with no metadata, which keeps the old simple dot.
+function LeadingVisual({ n }: { n: NotificationItem }) {
+  const m = n.metadata;
+  if (!m) return null;
+
+  if (m.actor) {
+    return (
+      <span
+        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 overflow-hidden"
+        style={{ background: "#888" }}
+      >
+        {m.actor.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={m.actor.avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          initialsFor(m.actor.name)
+        )}
+      </span>
+    );
+  }
+  if (m.team) {
+    return (
+      <span
+        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 overflow-hidden"
+        style={{ background: m.team.color }}
+      >
+        {m.team.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={m.team.logoUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          m.team.name.slice(0, 2).toUpperCase()
+        )}
+      </span>
+    );
+  }
+  if (m.stageColor) {
+    return (
+      <span
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: `color-mix(in srgb, ${m.stageColor} 18%, transparent)` }}
+      >
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: m.stageColor }} />
+      </span>
+    );
+  }
+  return null;
+}
+
+// Rich, structured body — bold names/teams, colored role pills — for
+// notifications that carry metadata. Falls back to the plain stored
+// body string for anything without it (old rows, simple cases).
+function RichBody({ n }: { n: NotificationItem }) {
+  const m = n.metadata;
+  if (!m) return <>{n.body}</>;
+
+  switch (n.kind) {
+    case "team_invite":
+      return (
+        <>
+          <b>{m.actor?.name}</b> invited you to join <b>{m.team?.name}</b>.
+        </>
+      );
+    case "team_invite_response":
+      return (
+        <>
+          <b>{m.actor?.name}</b> {m.accepted ? "accepted your invite and joined" : "declined your invite to"}{" "}
+          <b>{m.team?.name}</b>.
+        </>
+      );
+    case "ownership_request":
+      return (
+        <>
+          <b>{m.team?.name}</b>&rsquo;s owner wants to make you the new owner.
+        </>
+      );
+    case "ownership_response":
+      return (
+        <>
+          <b>{m.actor?.name}</b> {m.accepted ? "accepted" : "declined"} ownership of <b>{m.team?.name}</b>.
+        </>
+      );
+    case "kicked":
+      return (
+        <>
+          You were removed from <b>{m.team?.name}</b>.
+        </>
+      );
+    case "role_changed":
+      return (
+        <span className="inline">
+          Your role on <b>{m.team?.name}</b> changed to{" "}
+          {(m.roles ?? []).length === 0 ? (
+            "nothing"
+          ) : (
+            (m.roles ?? []).map((r, i) => (
+              <span key={r.name}>
+                <span
+                  className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
+                  style={{ color: r.color, background: `color-mix(in srgb, ${r.color} 14%, transparent)` }}
+                >
+                  {r.name}
+                </span>
+                {i < (m.roles?.length ?? 0) - 1 ? " " : ""}
+              </span>
+            ))
+          )}
+          .
+        </span>
+      );
+    case "stage_assignment":
+      return (
+        <>
+          You&rsquo;ve been tagged on <b>&ldquo;{m.projectTitle}&rdquo;</b> for{" "}
+          <span
+            className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
+            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+          >
+            {m.stageLabel}
+          </span>
+          .
+        </>
+      );
+    case "stage_ready":
+      return (
+        <>
+          <b>&ldquo;{m.projectTitle}&rdquo;</b> moved into{" "}
+          <span
+            className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
+            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+          >
+            {m.stageLabel}
+          </span>{" "}
+          — you have work to do.
+        </>
+      );
+    case "mention":
+      return (
+        <>
+          <b>{m.actor?.name}</b> mentioned you in{" "}
+          <span
+            className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
+            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+          >
+            {m.stageLabel}
+          </span>{" "}
+          on <b>&ldquo;{m.projectTitle}&rdquo;</b>: &ldquo;{m.snippet}&rdquo;
+        </>
+      );
+    default:
+      return <>{n.body}</>;
+  }
 }
 
 export function NotificationBell({
   notifications,
+  userId,
 }: {
   notifications: NotificationItem[];
+  userId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -43,6 +221,21 @@ export function NotificationBell({
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` },
+        () => router.refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, router]);
+
+  useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
@@ -50,8 +243,12 @@ export function NotificationBell({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  function isActionable(n: NotificationItem) {
+    return Boolean(n.team_invite_id || n.ownership_transfer_id);
+  }
+
   function handleClick(n: NotificationItem) {
-    if (n.team_invite_id) return; // handled by its own Accept/Decline buttons
+    if (isActionable(n)) return; // handled by its own Accept/Decline buttons
     setOpen(false);
     startTransition(() => {
       markNotificationRead(n.id);
@@ -62,14 +259,25 @@ export function NotificationBell({
   }
 
   async function respond(n: NotificationItem, accept: boolean) {
-    if (!n.team_invite_id) return;
     setRespondingId(n.id);
-    const result = await respondToTeamInvite(n.team_invite_id, accept);
+    const result = n.team_invite_id
+      ? await respondToTeamInvite(n.team_invite_id, accept)
+      : n.ownership_transfer_id
+      ? await respondToOwnershipTransfer(n.ownership_transfer_id, accept)
+      : { error: "Nothing to respond to." };
     setRespondingId(null);
     if (result?.error) {
       toast.error(result.error);
     } else {
-      toast.success(accept ? "You joined the team" : "Invite declined");
+      toast.success(
+        n.ownership_transfer_id
+          ? accept
+            ? "You're now the owner"
+            : "Ownership request declined"
+          : accept
+          ? "You joined the team"
+          : "Invite declined"
+      );
       markNotificationRead(n.id);
       router.refresh();
     }
@@ -84,7 +292,9 @@ export function NotificationBell({
       >
         <BellIcon className="w-[18px] h-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red" />
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-[3px] rounded-full bg-red text-white text-[9.5px] font-bold flex items-center justify-center leading-none">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
         )}
       </button>
 
@@ -110,29 +320,35 @@ export function NotificationBell({
               </div>
             ) : (
               notifications.map((n) => {
-                const status = inviteStatus(n);
-                const isPendingInvite = n.team_invite_id && status === "pending";
+                const status = actionableStatus(n);
+                const isPendingAction = isActionable(n) && status === "pending";
+                const visual = <LeadingVisual n={n} />;
                 return (
                   <div
                     key={n.id}
                     onClick={() => handleClick(n)}
                     className={`flex gap-2.5 px-4 py-3 border-b border-line/10 last:border-none transition-colors ${
-                      n.team_invite_id ? "" : "hover:bg-surface-2 cursor-pointer"
+                      isActionable(n) ? "" : "hover:bg-surface-2 cursor-pointer"
                     }`}
                   >
-                    <span
-                      className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                        n.is_read ? "bg-transparent" : "bg-amber"
-                      }`}
-                    />
+                    {visual ?? (
+                      <span
+                        className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                          n.is_read ? "bg-transparent" : "bg-amber"
+                        }`}
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <span className="block text-[12.5px] leading-snug text-ink">
-                        {n.body}
+                        <RichBody n={n} />
+                        {visual && !n.is_read && (
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber ml-1.5 align-middle" />
+                        )}
                       </span>
                       <span className="block text-[10.5px] text-ink-soft mt-1">
                         {relativeTime(n.created_at)}
                       </span>
-                      {isPendingInvite && (
+                      {isPendingAction && (
                         <div className="flex gap-2 mt-2">
                           <button
                             onClick={(e) => {
@@ -156,7 +372,7 @@ export function NotificationBell({
                           </button>
                         </div>
                       )}
-                      {n.team_invite_id && status && status !== "pending" && (
+                      {isActionable(n) && status && status !== "pending" && (
                         <span className="inline-block mt-1.5 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
                           {status}
                         </span>
