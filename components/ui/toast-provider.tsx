@@ -4,8 +4,13 @@ import { AlertIcon, CheckIcon } from "./icons";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
-type Toast = { id: number; kind: "success" | "error"; message: string };
-type ToastAPI = { success: (message: string) => void; error: (message: string) => void };
+export type ToastAction = { label: string; onClick: () => void };
+type ToastOptions = { action?: ToastAction; duration?: number };
+type Toast = { id: number; kind: "success" | "error"; message: string; action?: ToastAction };
+type ToastAPI = {
+  success: (message: string, opts?: ToastOptions) => void;
+  error: (message: string, opts?: ToastOptions) => void;
+};
 
 const ToastContext = createContext<ToastAPI | null>(null);
 
@@ -13,32 +18,55 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const idRef = useRef(0);
 
-  const push = useCallback((kind: Toast["kind"], message: string) => {
-    const id = ++idRef.current;
-    setToasts((t) => [...t, { id, kind, message }]);
-    setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id));
-    }, 4200);
-  }, []);
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+
+  const push = useCallback(
+    (kind: Toast["kind"], message: string, opts?: ToastOptions) => {
+      const id = ++idRef.current;
+      setToasts((t) => [...t, { id, kind, message, action: opts?.action }]);
+      // Toasts with an action stay long enough to actually use it.
+      setTimeout(() => dismiss(id), opts?.duration ?? (opts?.action ? 9000 : 4200));
+    },
+    [dismiss]
+  );
 
   const api: ToastAPI = {
-    success: (message) => push("success", message),
-    error: (message) => push("error", message),
+    success: (message, opts) => push("success", message, opts),
+    error: (message, opts) => push("error", message, opts),
   };
 
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 items-end pointer-events-none">
+      <div
+        className="fixed bottom-5 right-5 left-5 sm:left-auto z-[200] flex flex-col gap-2 items-end pointer-events-none"
+        style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}
+        aria-live="polite"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
+            role={t.kind === "error" ? "alert" : "status"}
             className={`pointer-events-auto flex items-start gap-2.5 rounded-xl px-4 py-3 shadow-lg text-[13px] font-medium max-w-sm animate-[toastin_.2s_ease] ${
               t.kind === "error" ? "bg-red text-white" : "bg-ink text-paper"
             }`}
           >
-            <span className="mt-[1px] flex-shrink-0">{t.kind === "error" ? <AlertIcon className="w-4 h-4" /> : <CheckIcon className="w-4 h-4" />}</span>
+            <span className="mt-[1px] flex-shrink-0">
+              {t.kind === "error" ? <AlertIcon className="w-4 h-4" /> : <CheckIcon className="w-4 h-4" />}
+            </span>
             <span className="leading-snug">{t.message}</span>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action!.onClick();
+                  dismiss(t.id);
+                }}
+                className="ml-1 -my-0.5 flex-shrink-0 rounded-lg px-2.5 py-1 text-[12.5px] font-bold bg-paper/15 hover:bg-paper/25 transition-colors"
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

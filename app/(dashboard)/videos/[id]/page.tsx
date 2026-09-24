@@ -78,6 +78,7 @@ export default async function ProjectDetailPage({
     { data: comments },
     { data: thumbnailRows },
     { data: attachmentRows },
+    { data: otherDated },
   ] = await Promise.all([
     getMembership(supabase, teamId),
     getRoleColors(supabase, teamId),
@@ -112,6 +113,13 @@ export default async function ProjectDetailPage({
       .select("id, comment_id, file_name, file_path, file_size, mime_type, project_comments!inner(project_id, stage)")
       .eq("project_comments.project_id", id)
       .eq("project_comments.stage", tab),
+    // Other long videos' dates — dots in the date picker.
+    supabase
+      .from("long_video_projects")
+      .select("expected_date")
+      .eq("team_id", teamId)
+      .neq("id", id)
+      .not("expected_date", "is", null),
   ]);
 
   const userIsMaster = isMaster(membership?.roles ?? []);
@@ -217,41 +225,23 @@ export default async function ProjectDetailPage({
         Long videos
       </Link>
 
-      <div className="flex items-start justify-between gap-4 mb-2 flex-wrap">
-        <h1 className="font-display text-3xl font-semibold max-w-xl leading-tight">
+      {/* Title row: number + title, delete tucked away on the right */}
+      <div className="flex items-start gap-3 mb-1.5">
+        <h1 className="flex-1 min-w-0 font-display text-[26px] sm:text-3xl font-semibold leading-tight">
+          <span className="font-mono text-[15px] sm:text-[17px] font-semibold text-ink-faint align-middle mr-2 tabular-nums">
+            #{project.entry_number}
+          </span>
           {project.title}
         </h1>
-        <div className="flex items-center gap-2 flex-wrap">
-          {project.stage === "done" ? (
-            <span className="text-[12px] font-bold px-2.5 py-1 rounded-full bg-amber/15 text-amber">
-              Finished
-            </span>
-          ) : (
-            userIsMaster && (
-              <>
-                {currentIndex > 0 && (
-                  <RegressStageButton
-                    projectId={project.id}
-                    prevLabel={STAGE_LABELS[STAGE_ORDER[currentIndex - 1]]}
-                  />
-                )}
-                {nextStage && (
-                  <AdvanceStageButton
-                    projectId={project.id}
-                    nextLabel={STAGE_LABELS[nextStage as PipelineStage]}
-                  />
-                )}
-              </>
-            )
-          )}
-          {!userIsMaster && project.stage !== "done" && (
-            <span className="text-[12px] text-ink-faint">
-              Only the master can move this project
-            </span>
-          )}
-        </div>
+        {userIsMaster && (
+          <div className="flex-shrink-0 pt-0.5">
+            <DeleteProjectButton projectId={id} teamId={teamId} projectTitle={project.title} />
+          </div>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+
+      {/* Quiet metadata line */}
+      <div className="flex flex-wrap items-center gap-x-0.5 gap-y-1 -ml-2 mb-4">
         <TypeThemeEditor
           projectId={id}
           teamId={teamId}
@@ -261,14 +251,39 @@ export default async function ProjectDetailPage({
           canEdit={canActOnStage(membership, "ideate")}
           color={colorForId(project.theme || "theme")}
         />
+        <span className="text-ink-faint/50 text-[13px]" aria-hidden>·</span>
         <ExpectedDateEditor
           projectId={id}
           teamId={teamId}
           date={project.expected_date}
           canEdit={canActOnStage(membership, "ideate")}
+          otherDates={(otherDated ?? []).map((r) => r.expected_date as string)}
         />
-        {userIsMaster && (
-          <DeleteProjectButton projectId={id} teamId={teamId} projectTitle={project.title} />
+      </div>
+
+      {/* Stage actions */}
+      <div className="flex items-center gap-2 flex-wrap mb-6">
+        {project.stage === "done" ? (
+          <span className="text-[12px] font-bold px-2.5 py-1 rounded-full bg-teal/15 text-teal">
+            Finished
+          </span>
+        ) : userIsMaster ? (
+          <>
+            {currentIndex > 0 && (
+              <RegressStageButton
+                projectId={project.id}
+                prevLabel={STAGE_LABELS[STAGE_ORDER[currentIndex - 1]]}
+              />
+            )}
+            {nextStage && (
+              <AdvanceStageButton
+                projectId={project.id}
+                nextLabel={STAGE_LABELS[nextStage as PipelineStage]}
+              />
+            )}
+          </>
+        ) : (
+          <span className="text-[12px] text-ink-faint">Only the master can move this project</span>
         )}
       </div>
 

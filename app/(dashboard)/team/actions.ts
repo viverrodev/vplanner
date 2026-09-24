@@ -143,18 +143,6 @@ export async function deleteTeam(teamId: string) {
     return { error: "Only the team's owner can delete it." };
   }
 
-  const { data: connected } = await supabase
-    .from("connected_accounts")
-    .select("platform")
-    .eq("team_id", teamId)
-    .eq("status", "connected");
-
-  if (connected && connected.length > 0) {
-    return {
-      error: `Disconnect ${connected.map((c) => c.platform).join(", ")} first — you can't delete a team with a connected social account.`,
-    };
-  }
-
   const admin = createAdminClient();
 
   // Capture who to tell and what to call it BEFORE it's gone. The logo is
@@ -512,5 +500,60 @@ export async function cancelOwnershipTransfer(teamId: string) {
   if (error) return { error: "Couldn't cancel the request — try again." };
 
   revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Short-video scheduling settings + default people for new shorts.
+ * Changing per-day / weekends / time zone immediately re-flows every
+ * auto-scheduled short (database trigger, migration 0027).
+ */
+export async function updateShortSettings(
+  teamId: string,
+  input: {
+    perDay: number;
+    weekends: boolean;
+    rollForward: boolean;
+    timezone: string;
+    defaultEditor: string | null;
+    defaultReviewer: string | null;
+    defaultScheduler: string | null;
+  }
+) {
+  const check = await requireMaster(teamId);
+  if (!check.ok) return { error: check.error };
+
+  const perDay = Math.round(Number(input.perDay));
+  if (!Number.isFinite(perDay) || perDay < 1 || perDay > 10) {
+    return { error: "Shorts per day must be between 1 and 10." };
+  }
+  const timezone = String(input.timezone ?? "").trim();
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    return { error: "Pick a valid time zone." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("teams")
+    .update({
+      shorts_per_day: perDay,
+      shorts_weekends: !!input.weekends,
+      shorts_roll_forward: !!input.rollForward,
+      timezone,
+      default_short_editor_member_id: input.defaultEditor || null,
+      default_short_reviewer_member_id: input.defaultReviewer || null,
+      default_short_scheduler_member_id: input.defaultScheduler || null,
+    })
+    .eq("id", teamId);
+
+  if (error) {
+    const own = error.code === "23514" || error.code === "42501";
+    return { error: own ? error.message : "Couldn't save the settings — try again." };
+  }
+
+  revalidatePath("/team");
+  revalidatePath("/shorts");
   return { success: true };
 }

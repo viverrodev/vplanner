@@ -411,3 +411,56 @@ export function UserIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/** Vertical frame with a play mark — short-form video. */
+export function ShortsIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="6.5" y="2.75" width="11" height="18.5" rx="2.75" />
+      <path d="m10.5 9.5 4 2.5-4 2.5Z" fill="currentColor" />
+    </Svg>
+  );
+}
+
+export function LinkIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 13.5a4 4 0 0 0 5.7.3l3-3a4 4 0 0 0-5.7-5.6l-1.2 1.1" />
+      <path d="M14 10.5a4 4 0 0 0-5.7-.3l-3 3a4 4 0 0 0 5.7 5.6l1.1-1.1" />
+    </Svg>
+  );
+}
+
+export function CopyIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.25" />
+      <path d="M15.5 8.5V6.25A2.25 2.25 0 0 0 13.25 4h-7A2.25 2.25 0 0 0 4 6.25v7a2.25 2.25 0 0 0 2.25 2.25H8.5" />
+    </Svg>
+  );
+}
+
+export function ExternalIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />
+    </Svg>
+  );
+}
+
+export function ClockIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="8.75" />
+      <path d="M12 7.5V12l3 2" />
+    </Svg>
+  );
+}
+
+export function MoreIcon(p: IconProps) {
+  return (
+    <Svg {...p} strokeWidth={2.5}>
+      <path d="M5.5 12h.01M12 12h.01M18.5 12h.01" />
+    </Svg>
+  );
+}

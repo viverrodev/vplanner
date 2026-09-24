@@ -18,6 +18,7 @@ export type PersonResult = {
 
 export type ProjectResult = {
   id: string;
+  entry_number: number;
   title: string;
   stage: PipelineStage;
   expected_date: string | null;
@@ -26,20 +27,32 @@ export type ProjectResult = {
   team: SearchTeamRef;
 };
 
+export type ShortResult = {
+  id: string;
+  entry_number: number;
+  title: string;
+  stage: import("@/modules/short-videos/lib/constants").ShortStage;
+  planned_date: string | null;
+  posted_count: number;
+  platform_count: number;
+  team: SearchTeamRef;
+};
+
 export type TeamResult = SearchTeamRef & { is_master: boolean; member_count: number };
 
 export type SearchResponse = {
   people: PersonResult[];
   projects: ProjectResult[];
+  shorts: ShortResult[];
   teams: TeamResult[];
   master_teams: SearchTeamRef[];
 };
 
-export const EMPTY_RESPONSE: SearchResponse = { people: [], projects: [], teams: [], master_teams: [] };
+export const EMPTY_RESPONSE: SearchResponse = { people: [], projects: [], shorts: [], teams: [], master_teams: [] };
 
 /** What's remembered in "Recent" — enough to render the row without a query. */
 export type RecentItem = {
-  kind: "person" | "project" | "team";
+  kind: "person" | "project" | "short" | "team";
   id: string;
   label: string;
   sublabel?: string;

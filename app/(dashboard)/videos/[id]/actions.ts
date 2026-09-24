@@ -121,6 +121,8 @@ export async function updateExpectedDate(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Session expired." };
 
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "That date isn't valid." };
+
   const membership = await getMembership(supabase, teamId);
   if (!isMaster(membership?.roles ?? []) && !canActOnStage(membership, "ideate")) {
     return { error: "You don't have access to edit this." };

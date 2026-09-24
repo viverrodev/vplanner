@@ -35,9 +35,12 @@ export function AdvanceStageButton({
     <button
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex items-center gap-1.5 rounded-lg bg-amber text-white font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:brightness-110 transition-[filter]"
+      aria-label={`Advance to ${nextLabel}`}
+      className="inline-flex items-center gap-1.5 rounded-lg bg-amber text-white font-semibold h-9 px-3 sm:px-4 text-[13px] sm:text-sm disabled:opacity-50 hover:brightness-110 transition-[filter]"
     >
-      {pending ? "Moving…" : `Advance to ${nextLabel}`}
+      {/* Phones: "Advance →"; wider screens: "Advance to Script →" */}
+      <span className="sm:hidden">{pending ? "Moving…" : "Advance"}</span>
+      <span className="hidden sm:inline">{pending ? "Moving…" : `Advance to ${nextLabel}`}</span>
       {!pending && <ArrowRightIcon className="w-4 h-4" />}
     </button>
   );
@@ -73,10 +76,13 @@ export function RegressStageButton({
     <button
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex items-center gap-1.5 rounded-lg border-2 border-line/15 text-ink-soft font-semibold px-4 py-2 text-sm disabled:opacity-50 hover:border-red/40 hover:text-red transition-colors"
+      aria-label={`Back to ${prevLabel}`}
+      title={`Back to ${prevLabel}`}
+      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-line/15 text-ink-soft font-semibold h-9 w-9 sm:w-auto sm:px-3.5 text-sm disabled:opacity-50 hover:border-red/40 hover:text-red transition-colors"
     >
+      {/* Phones: a square arrow button; wider screens: "← Back to Ideate" */}
       {!pending && <ArrowLeftIcon className="w-4 h-4" />}
-      {pending ? "Moving…" : `Back to ${prevLabel}`}
+      <span className="hidden sm:inline">{pending ? "Moving…" : `Back to ${prevLabel}`}</span>
     </button>
   );
 }

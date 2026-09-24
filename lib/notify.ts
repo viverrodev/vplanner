@@ -37,6 +37,7 @@ export type NotificationInsert = {
   kind?: string;
   metadata?: Record<string, unknown>;
   project_id?: string | null;
+  short_id?: string | null;
   stage?: string | null;
   team_invite_id?: string | null;
   ownership_transfer_id?: string | null;

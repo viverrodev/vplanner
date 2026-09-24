@@ -7,17 +7,14 @@ import { useToast } from "@/components/ui/toast-provider";
 export function DeleteTeamButton({
   teamId,
   teamName,
-  connectedPlatforms,
 }: {
   teamId: string;
   teamName: string;
-  connectedPlatforms: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [pending, startTransition] = useTransition();
   const toast = useToast();
-  const blocked = connectedPlatforms.length > 0;
   const expected = `team/${teamName}`;
   const matches = confirmText === expected;
 
@@ -35,14 +32,8 @@ export function DeleteTeamButton({
 
   return (
     <div>
-      {blocked && (
-        <p className="text-[12px] text-ink-soft mb-3">
-          Disconnect {connectedPlatforms.join(", ")} before you can delete this team.
-        </p>
-      )}
       <button
         onClick={() => setOpen(true)}
-        disabled={blocked}
         className="rounded-lg border border-red/40 text-red font-semibold px-3.5 py-2 text-[13px] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red/10 transition-colors"
       >
         Delete this team

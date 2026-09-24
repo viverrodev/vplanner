@@ -26,7 +26,7 @@ export default async function SettingsPage() {
       .single(),
     supabase
       .from("team_members")
-      .select("team_id, status, member_roles(role), teams(id, name, color, logo_url)")
+      .select("team_id, status, member_roles(role), teams!team_members_team_id_fkey(id, name, color, logo_url)")
       .eq("user_id", user!.id)
       .eq("status", "active"),
   ]);

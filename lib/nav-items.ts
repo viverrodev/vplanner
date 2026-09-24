@@ -1,4 +1,4 @@
-import { HomeIcon, VideoIcon, CalendarIcon, UsersIcon } from "@/components/ui/icons";
+import { HomeIcon, VideoIcon, ShortsIcon, CalendarIcon, UsersIcon } from "@/components/ui/icons";
 
 /**
  * Sidebar + mobile bottom-bar destinations. Icons are SVG components,
@@ -6,7 +6,8 @@ import { HomeIcon, VideoIcon, CalendarIcon, UsersIcon } from "@/components/ui/ic
  */
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", shortLabel: "Home", Icon: HomeIcon, available: true },
-  { href: "/videos", label: "Long videos", shortLabel: "Videos", Icon: VideoIcon, available: true },
+  { href: "/videos", label: "Long videos", shortLabel: "Long", Icon: VideoIcon, available: true },
+  { href: "/shorts", label: "Short videos", shortLabel: "Shorts", Icon: ShortsIcon, available: true },
   { href: "/calendar", label: "Calendar", shortLabel: "Calendar", Icon: CalendarIcon, available: false },
   { href: "/team", label: "Team", shortLabel: "Team", Icon: UsersIcon, available: true },
 ] as const;

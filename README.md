@@ -184,3 +184,20 @@ SECURITY INVOKER on purpose: RLS decides what anyone can find, so never
 convert it to SECURITY DEFINER. To make something new searchable, add a
 trigram index on `lower(column)` and a new section to the function, then a
 section in `components/search/global-search.tsx`.
+
+## Short videos
+
+Stages: Script → Editing → In review → Ready to post → Posted. "Posted" is
+never set by hand — it follows `short_video_posts` (all planned platforms
+marked = Posted). Who may change which field is decided by the
+`short_guard_update` trigger (migration 0026); `modules/short-videos/lib/permissions.ts`
+mirrors it for the UI. History (`short_video_events`) is written only by
+triggers. Entry numbers come from `next_team_number()` — never set them
+from the app.
+
+### Shorts scheduling queue (0027)
+Auto-dated shorts are never dated by the app: the database re-dates them
+(`recalc_short_queue`) whenever something that affects the schedule
+changes. The app only ever sets `planned_date` (= pin) or
+`schedule_mode = 'auto'` (= back to the queue), and reorders through the
+`move_short()` RPC.

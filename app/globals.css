@@ -13,8 +13,8 @@
   --paper: 237 238 231;    /* cool bone, not cream */
   --paper-2: 229 230 221;
   --ink: 20 17 12;         /* warm near-black */
-  --ink-soft: 96 90 78;
-  --ink-faint: 150 143 128;
+  --ink-soft: 74 69 60;     /* 8.1:1 on paper */
+  --ink-faint: 110 104 92;  /* 4.7:1 on paper — WCAG AA */
   --surface: 255 255 255;
   --surface-2: 247 246 240;
   --line: 20 17 12;
@@ -37,8 +37,8 @@
   --paper: 18 15 11;
   --paper-2: 26 22 16;
   --ink: 240 236 227;
-  --ink-soft: 176 166 149;
-  --ink-faint: 118 109 94;
+  --ink-soft: 204 196 181;  /* 11:1 on paper · 9.7:1 on surface-2 */
+  --ink-faint: 152 143 127; /* 6:1 on paper · 5.2:1 on surface-2 */
   --surface: 28 24 17;
   --surface-2: 34 29 20;
   --line: 240 236 227;

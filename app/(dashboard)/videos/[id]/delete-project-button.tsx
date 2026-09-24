@@ -40,7 +40,7 @@ export function DeleteProjectButton({
       disabled={pending}
       aria-label="Delete project"
       title="Delete project"
-      className="w-8 h-8 rounded-lg border border-red/40 text-red flex items-center justify-center hover:bg-red/10 transition-colors disabled:opacity-40"
+      className="w-9 h-9 rounded-lg text-ink-faint flex items-center justify-center hover:text-red hover:bg-red/10 transition-colors disabled:opacity-40"
     >
       <TrashIcon className="w-[15px] h-[15px]" />
     </button>

@@ -19,13 +19,8 @@ export const metadata: Metadata = { title: "Team" };
 import { RoleColorPicker } from "./role-color-picker";
 import { TransferOwnership } from "./transfer-ownership";
 import { DeleteTeamButton } from "./delete-team-button";
-import { YouTubeIcon, TikTokIcon, InstagramIcon, FacebookIcon } from "@/components/ui/platform-icons";
-
-const PLATFORMS = [
-  { id: "youtube", name: "YouTube" },
-  { id: "tiktok", name: "TikTok" },
-  { id: "meta", name: "Instagram & Facebook" },
-] as const;
+import { ShortSettingsForm } from "./short-settings";
+import { getShortSettings, listTeamPeople } from "@/modules/short-videos/lib/queries";
 
 export default async function TeamPage() {
   const supabase = await createClient();
@@ -35,7 +30,7 @@ export default async function TeamPage() {
     return <div className="p-8 text-sm text-ink-soft">Create a team first.</div>;
   }
 
-  const [membership, currentUser, roleColors, [{ data: team }, { data: members }, { data: connections }, { data: pendingInvites }]] = await Promise.all([
+  const [membership, currentUser, roleColors, [{ data: team }, { data: members }, { data: pendingInvites }]] = await Promise.all([
     getMembership(supabase, currentTeam.id),
     getCachedUser(),
     getRoleColors(supabase, currentTeam.id),
@@ -46,7 +41,6 @@ export default async function TeamPage() {
       .select("id, user_id, invited_email, status, profiles(username, full_name, email, avatar_url), member_roles(role)")
       .eq("team_id", currentTeam.id)
       .order("created_at"),
-    supabase.from("connected_accounts").select("platform, status, account_label").eq("team_id", currentTeam.id),
     supabase
       .from("team_invites")
       .select("id, proposed_roles, expires_at, created_at, profiles!team_invites_invited_user_id_fkey(username, full_name, email)")
@@ -57,6 +51,9 @@ export default async function TeamPage() {
     ]),
   ]);
   const userIsMaster = isMaster(membership?.roles ?? []);
+  const [shortSettings, shortPeople] = userIsMaster
+    ? await Promise.all([getShortSettings(currentTeam.id), listTeamPeople(currentTeam.id)])
+    : [null, []];
   const viewerIsOwner = !!currentUser && currentUser.id === team?.owner_id;
 
   // The owner's live (pending, unexpired) ownership request, if any —
@@ -88,7 +85,6 @@ export default async function TeamPage() {
     };
   });
 
-  const connectionByPlatform = new Map((connections ?? []).map((c) => [c.platform, c]));
 
   return (
     <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-3xl mx-auto space-y-8">
@@ -219,45 +215,22 @@ export default async function TeamPage() {
         )}
       </section>
 
-      {/* Social connections */}
-      <section className="rounded-xl border border-line/10 bg-surface p-6">
-        <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-1">
-          Connected accounts
-        </h2>
-        <p className="text-[12px] text-ink-soft mb-4">
-          For publishing directly from VPlanner later. Each of these needs a
-          developer app registered with that platform before a real
-          &ldquo;Connect&rdquo; button can work — not something we can turn
-          on from inside the app alone. Flagging honestly rather than faking
-          a working button.
-        </p>
-        <div className="space-y-2">
-          {PLATFORMS.map((p) => {
-            const conn = connectionByPlatform.get(p.id);
-            return (
-              <div
-                key={p.id}
-                className="flex items-center gap-3 rounded-lg border border-line/10 px-3.5 py-3"
-              >
-                <span className="flex items-center gap-1 flex-shrink-0">
-                  {p.id === "youtube" && <YouTubeIcon className="w-8 h-8" />}
-                  {p.id === "tiktok" && <TikTokIcon className="w-8 h-8" />}
-                  {p.id === "meta" && (
-                    <>
-                      <InstagramIcon className="w-8 h-8" />
-                      <FacebookIcon className="w-8 h-8" />
-                    </>
-                  )}
-                </span>
-                <span className="text-[13px] font-semibold flex-1">{p.name}</span>
-                <span className="text-[11px] font-bold uppercase tracking-wide text-ink-faint bg-surface-2 px-2 py-1 rounded-full">
-                  {conn?.status === "connected" ? conn.account_label ?? "Connected" : "Not connected"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      {userIsMaster && (
+        <section className="rounded-xl border border-line/10 bg-surface p-6">
+          <h2 className="text-[13px] font-display font-semibold uppercase tracking-wide text-ink-soft mb-1">
+            Short videos
+          </h2>
+          <p className="text-[12px] text-ink-soft mb-5">
+            How many shorts you post per day and on which days — auto-scheduled shorts are dated from this.
+            Defaults pre-fill the people on every new short.
+          </p>
+          <ShortSettingsForm
+            teamId={currentTeam.id}
+            settings={shortSettings!}
+            people={shortPeople}
+          />
+        </section>
+      )}
 
       {currentUser?.id === team?.owner_id && (
         <section className="rounded-xl border border-red/20 bg-red/5 p-6">
@@ -293,9 +266,6 @@ export default async function TeamPage() {
             <DeleteTeamButton
               teamId={currentTeam.id}
               teamName={currentTeam.name}
-              connectedPlatforms={(connections ?? [])
-                .filter((c) => c.status === "connected")
-                .map((c) => c.platform)}
             />
           </div>
         </section>

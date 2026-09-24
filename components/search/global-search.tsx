@@ -8,11 +8,14 @@ import { colorForId, displayName } from "@/lib/avatar";
 import { profileHref } from "@/lib/profile-link";
 import type { TeamSummary } from "@/lib/teams";
 import { STAGE_LABELS, stageColor } from "@/modules/long-videos/lib/stages";
+import { SHORT_STAGE_COLOR, SHORT_STAGE_LABELS } from "@/modules/short-videos/lib/constants";
+import { formatShortDate } from "@/modules/short-videos/lib/dates";
 import {
   ArrowRightIcon,
   CloseIcon,
   HomeIcon,
   PlusIcon,
+  ShortsIcon,
   UserIcon,
   SearchIcon,
   SettingsIcon,
@@ -23,7 +26,7 @@ import { useGlobalSearch } from "./use-global-search";
 import { clearRecents, pushRecent, readRecents } from "./recents";
 import { Highlight } from "./highlight";
 import { InvitePanel } from "./invite-panel";
-import { PersonAvatar, ProjectThumb, TeamBadge } from "./visuals";
+import { PersonAvatar, ProjectThumb, ShortThumb, TeamBadge } from "./visuals";
 import type { PersonResult, RecentItem } from "./types";
 
 const THUMB_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/`;
@@ -91,7 +94,8 @@ export function GlobalSearch({
   // "@edu4rd" should find the username "edu4rd".
   const searchText = query.trim().replace(/^@/, "");
   const { data, loading, error, term, patchPerson } = useGlobalSearch(searchText, open);
-  const hasQuery = term.length >= 2;
+  // "#12" / "12" look up entry numbers, so even one digit counts.
+  const hasQuery = term.length >= 2 || /^#?\d+$/.test(term);
 
   useEffect(() => {
     const platform =
@@ -159,6 +163,8 @@ export function GlobalSearch({
     const me = profileHref({ username, userId });
     return [
       { key: "new-project", label: "New long-form project", keywords: "create add idea video", href: "/videos/new", icon: <PlusIcon className="w-4 h-4" /> },
+      { key: "new-short", label: "New short", keywords: "create add short reel tiktok script", href: "/shorts/new", icon: <PlusIcon className="w-4 h-4" /> },
+      { key: "shorts", label: "Short videos", keywords: "shorts reels tiktok posted schedule", href: "/shorts", icon: <ShortsIcon className="w-4 h-4" /> },
       { key: "videos", label: "Long videos", keywords: "projects pipeline list", href: "/videos", icon: <VideoIcon className="w-4 h-4" /> },
       { key: "dashboard", label: "Dashboard", keywords: "home", href: "/dashboard", icon: <HomeIcon className="w-4 h-4" /> },
       { key: "team", label: "Team settings", keywords: "members roles invite", href: "/team", icon: <UsersIcon className="w-4 h-4" /> },
@@ -185,6 +191,8 @@ export function GlobalSearch({
           visual:
             r.kind === "project" ? (
               <ProjectThumb url={r.imageUrl ?? null} color={r.color ?? "#999"} />
+            ) : r.kind === "short" ? (
+              <ShortThumb color={r.color ?? "#999"} />
             ) : r.kind === "team" ? (
               <TeamBadge team={{ name: r.label, color: r.color ?? "#999", logo_url: r.imageUrl ?? null }} />
             ) : (
@@ -251,10 +259,15 @@ export function GlobalSearch({
       const c = stageColor(p.stage);
       list.push({
         key: `project-${p.id}`,
-        section: "Projects",
-        label: `${p.title}, ${STAGE_LABELS[p.stage]}, in ${p.team.name}`,
+        section: "Long videos",
+        label: `Long video #${p.entry_number} ${p.title}, ${STAGE_LABELS[p.stage]}, in ${p.team.name}`,
         visual: <ProjectThumb url={thumb} color={c} />,
-        title: <Highlight text={p.title} query={term} />,
+        title: (
+          <>
+            <span className="font-mono text-[11.5px] font-semibold text-ink-faint mr-1.5">#{p.entry_number}</span>
+            <Highlight text={p.title} query={term} />
+          </>
+        ),
         subtitle: (
           <span className="flex items-center gap-1.5 min-w-0">
             <TeamBadge team={p.team} size="w-4 h-4 text-[7px] rounded-[4px]" />
@@ -279,10 +292,60 @@ export function GlobalSearch({
           go(href, {
             kind: "project",
             id: p.id,
-            label: p.title,
-            sublabel: p.team.name,
+            label: `#${p.entry_number} ${p.title}`,
+            sublabel: `Long video · ${p.team.name}`,
             href,
             imageUrl: thumb,
+            color: c,
+          }),
+      });
+    });
+
+    (data.shorts ?? []).forEach((sh) => {
+      const href = `/shorts/${sh.id}`;
+      const c = SHORT_STAGE_COLOR[sh.stage];
+      const date = formatShortDate(sh.planned_date);
+      list.push({
+        key: `short-${sh.id}`,
+        section: "Short videos",
+        label: `Short #${sh.entry_number} ${sh.title}, ${SHORT_STAGE_LABELS[sh.stage]}, in ${sh.team.name}`,
+        visual: <ShortThumb color={c} />,
+        title: (
+          <>
+            <span className="font-mono text-[11.5px] font-semibold text-ink-faint mr-1.5">#{sh.entry_number}</span>
+            <Highlight text={sh.title} query={term} />
+          </>
+        ),
+        subtitle: (
+          <span className="flex items-center gap-1.5 min-w-0">
+            <TeamBadge team={sh.team} size="w-4 h-4 text-[7px] rounded-[4px]" />
+            <span className="truncate flex-shrink-0 max-w-[45%]">{sh.team.name}</span>
+            {date && <span className="truncate text-ink-faint">· {date}</span>}
+          </span>
+        ),
+        trailing: (
+          <span className="flex items-center gap-2 flex-shrink-0">
+            {sh.posted_count > 0 && sh.stage !== "posted" && (
+              <span className="hidden sm:inline text-[10.5px] font-bold text-amber tabular-nums">
+                {sh.posted_count}/{sh.platform_count} posted
+              </span>
+            )}
+            <span
+              className="text-[10.5px] font-bold px-2 py-0.5 rounded-full"
+              style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+            >
+              {SHORT_STAGE_LABELS[sh.stage]}
+            </span>
+          </span>
+        ),
+        href,
+        run: () =>
+          go(href, {
+            kind: "short",
+            id: sh.id,
+            label: `#${sh.entry_number} ${sh.title}`,
+            sublabel: `Short · ${sh.team.name}`,
+            href,
             color: c,
           }),
       });
@@ -441,7 +504,7 @@ export function GlobalSearch({
   });
 
   const nothingFound =
-    hasQuery && !loading && !error && data.projects.length === 0 && data.people.length === 0 && data.teams.length === 0 && items.length === 0;
+    hasQuery && !loading && !error && items.length === 0;
 
   return (
     <>
@@ -453,7 +516,7 @@ export function GlobalSearch({
         aria-label="Search"
       >
         <SearchIcon className="w-4 h-4 flex-shrink-0" />
-        <span className="flex-1 text-left truncate">Search projects, people, teams…</span>
+        <span className="flex-1 text-left truncate">Search videos, shorts, people…</span>
         <span className="flex items-center gap-1 flex-shrink-0" aria-label={isMac ? "Command K or Control K" : "Control K or Command K"}>
           {(isMac ? ["⌘", "Ctrl"] : ["Ctrl", "⌘"]).map((mod, i) => (
             <span key={mod} className="flex items-center gap-1">
@@ -507,7 +570,7 @@ export function GlobalSearch({
                     setQuery(e.target.value);
                     if (invitee) setInvitee(null);
                   }}
-                  placeholder="Search projects, people, teams…"
+                  placeholder="Search videos, shorts, people, teams… (or #12)"
                   className="flex-1 min-w-0 bg-transparent text-[16px] sm:text-[15px] outline-none placeholder:text-ink-faint"
                   role="combobox"
                   aria-expanded="true"

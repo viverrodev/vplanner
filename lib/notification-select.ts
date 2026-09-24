@@ -4,4 +4,4 @@
  * both always return the same shape.
  */
 export const NOTIFICATION_SELECT =
-  "id, body, project_id, stage, is_read, created_at, kind, metadata, team_invite_id, team_invites(status), ownership_transfer_id, ownership_transfer_requests(status)";
+  "id, body, project_id, short_id, stage, is_read, created_at, kind, metadata, team_invite_id, team_invites(status), ownership_transfer_id, ownership_transfer_requests(status)";

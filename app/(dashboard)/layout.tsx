@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/get-user";
 import { getTeamsAndCurrent } from "@/lib/teams";
@@ -24,6 +25,10 @@ export default async function DashboardLayout({
 }) {
   const supabase = await createClient();
   const user = await getCachedUser();
+  // Middleware normally guarantees a session here, but it deliberately
+  // skips static-looking paths (e.g. /favicon.ico) — those can still fall
+  // into the catch-all 404 route. Never assume; send them to login.
+  if (!user) redirect("/login");
 
   // Three independent reads — run them at the same time instead of one
   // after another (one round trip of waiting instead of three).

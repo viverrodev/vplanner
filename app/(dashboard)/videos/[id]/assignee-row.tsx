@@ -2,6 +2,8 @@
 
 import { useOptimistic } from "react";
 import { useAction } from "@/lib/hooks/use-action";
+import { Select } from "@/components/ui/select";
+import { CloseIcon } from "@/components/ui/icons";
 import { assignMember, removeAssignee } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import type { PipelineStage } from "@/lib/permissions/roles";
@@ -96,29 +98,21 @@ export function AssigneeRow({
               className="text-ink-faint hover:text-red ml-0.5"
               aria-label={`Remove ${a.name}`}
             >
-              ×
+              <CloseIcon className="w-3 h-3" />
             </button>
           )}
         </span>
       ))}
       {isMaster && available.length > 0 && (
-        <select
+        <Select
+          variant="pill"
+          value={null}
           disabled={pending}
-          onChange={(e) => {
-            const id = e.target.value;
-            if (id) handleAssign(id);
-            e.target.value = "";
-          }}
-          defaultValue=""
-          className="text-[12.5px] rounded-full border border-dashed border-line/25 px-2.5 py-1 bg-transparent text-ink-soft"
-        >
-          <option value="">+ Assign…</option>
-          {available.map((m) => (
-            <option key={m.teamMemberId} value={m.teamMemberId}>
-              {m.name} ({m.roles})
-            </option>
-          ))}
-        </select>
+          onChange={(memberId) => memberId && handleAssign(memberId)}
+          options={available.map((m) => ({ value: m.teamMemberId, label: m.name, hint: m.roles }))}
+          renderValue={() => <span>+ Assign…</span>}
+          ariaLabel="Assign someone to this stage"
+        />
       )}
       {isMaster && available.length === 0 && shown.length === 0 && (
         <span className="text-[11.5px] text-ink-soft">

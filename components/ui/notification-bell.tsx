@@ -24,6 +24,7 @@ export type NotificationItem = {
   id: string;
   body: string;
   project_id: string | null;
+  short_id: string | null;
   stage: string | null;
   is_read: boolean;
   created_at: string;
@@ -41,6 +42,12 @@ export type NotificationItem = {
     stageColor?: string;
     snippet?: string;
     accepted?: boolean;
+    shortNumber?: number;
+    shortTitle?: string;
+    note?: string;
+    readyToEdit?: boolean;
+    roleLabel?: string;
+    suffix?: string;
   } | null;
 };
 
@@ -49,6 +56,15 @@ export type NotificationItem = {
 // notifications stored in their metadata.
 function stageTone(m: NonNullable<NotificationItem["metadata"]>) {
   return m.stageLabel === "Done" ? "rgb(var(--teal))" : "rgb(var(--amber))";
+}
+
+function ShortRef({ m }: { m: NonNullable<NotificationItem["metadata"]> }) {
+  return (
+    <>
+      <span className="font-mono text-[11.5px] text-ink-faint">#{m.shortNumber}</span>{" "}
+      <b>&ldquo;{m.shortTitle}&rdquo;</b>
+    </>
+  );
 }
 
 function actionableStatus(n: NotificationItem): string | null {
@@ -140,6 +156,51 @@ function RichBody({ n }: { n: NotificationItem }) {
       return (
         <>
           <b>{m.actor?.name}</b> {m.accepted ? "accepted" : "declined"} ownership of <b>{m.team?.name}</b>.
+        </>
+      );
+    case "short_assigned":
+      return (
+        <>
+          <b>{m.actor?.name}</b> made you the editor on <ShortRef m={m} />
+          {m.readyToEdit ? " — it's ready to edit." : "."}
+        </>
+      );
+    case "short_role_assigned":
+      return (
+        <>
+          <b>{m.actor?.name}</b> made you the {m.roleLabel} on <ShortRef m={m} />
+          {m.suffix ?? "."}
+        </>
+      );
+    case "short_editing":
+      return (
+        <>
+          <ShortRef m={m} /> is ready for you to edit.
+        </>
+      );
+    case "short_review_ready":
+      return (
+        <>
+          <b>{m.actor?.name}</b> finished editing <ShortRef m={m} /> — ready for your review.
+        </>
+      );
+    case "short_changes_requested":
+      return (
+        <>
+          <b>{m.actor?.name}</b> asked for changes on <ShortRef m={m} />
+          {m.note ? <>: &ldquo;{m.note}&rdquo;</> : "."}
+        </>
+      );
+    case "short_approved":
+      return (
+        <>
+          <b>{m.actor?.name}</b> approved <ShortRef m={m} />. Nice work!
+        </>
+      );
+    case "short_ready_to_post":
+      return (
+        <>
+          <ShortRef m={m} /> is approved and ready to post.
         </>
       );
     case "team_disbanded":
@@ -339,7 +400,9 @@ export function NotificationBell({
     if (isActionable(n)) return; // handled by its own Accept/Decline buttons
     setOpen(false);
     if (!n.is_read) markReadLocally(n.id);
-    if (n.project_id) {
+    if (n.short_id) {
+      router.push(`/shorts/${n.short_id}`);
+    } else if (n.project_id) {
       router.push(n.stage ? `/videos/${n.project_id}?tab=${n.stage}` : `/videos/${n.project_id}`);
     }
   }

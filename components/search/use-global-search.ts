@@ -54,7 +54,7 @@ export function useGlobalSearch(query: string, enabled: boolean) {
         setLoading(false);
       },
       // Empty query (just loading "teams you can invite into") → no wait.
-      term.length < 2 ? 0 : DEBOUNCE_MS
+      term.length < 2 && !/^#?\d+$/.test(term) ? 0 : DEBOUNCE_MS
     );
     return () => clearTimeout(timer);
   }, [term, enabled]);

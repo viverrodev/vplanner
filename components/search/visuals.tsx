@@ -61,3 +61,23 @@ export function ProjectThumb({ url, color }: { url: string | null; color: string
     </span>
   );
 }
+
+/** Vertical 9:16 tile for shorts, tinted by stage. */
+export function ShortThumb({ color }: { color: string }) {
+  return (
+    <span
+      className="w-14 h-8 rounded-md flex-shrink-0 flex items-center justify-center border border-line/10"
+      style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+    >
+      <span
+        className="w-[14px] h-[24px] rounded-[3px] border-[1.5px] flex items-center justify-center"
+        style={{ borderColor: color }}
+      >
+        <span
+          className="w-0 h-0 border-y-[3.5px] border-y-transparent border-l-[5px]"
+          style={{ borderLeftColor: color }}
+        />
+      </span>
+    </span>
+  );
+}

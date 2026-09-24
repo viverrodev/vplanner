@@ -30,7 +30,10 @@ export const getTeamsAndCurrent = cache(async (supabase: SupabaseClient) => {
 
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, slug, color, logo_url, team_members!inner(user_id, status)")
+    // Explicit relationship: teams also point at team_members (default
+    // short editor/reviewer/scheduler, migration 0027), so without the hint
+    // Supabase can't tell which link to follow and the query fails.
+    .select("id, name, slug, color, logo_url, team_members!team_members_team_id_fkey!inner(user_id, status)")
     .eq("team_members.user_id", user.id)
     .eq("team_members.status", "active")
     .order("created_at", { ascending: true });

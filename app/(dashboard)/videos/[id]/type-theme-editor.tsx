@@ -115,27 +115,23 @@ export function TypeThemeEditor({
     );
   }
 
+  // Low-key metadata: reads as a quiet line of text; the edit affordance
+  // only appears on hover (always visible on touch screens).
   return (
     <button
       onClick={() => canEdit && setEditing(true)}
       disabled={!canEdit}
-      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${
-        canEdit ? "cursor-pointer hover:brightness-95" : "cursor-default"
+      className={`group inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium text-ink-soft transition-colors ${
+        canEdit ? "cursor-pointer hover:bg-surface-2 hover:text-ink" : "cursor-default"
       }`}
-      style={{
-        borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
-        background: `color-mix(in srgb, ${color} 10%, transparent)`,
-      }}
     >
-      <span className="text-[13.5px] font-bold" style={{ color }}>
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} aria-hidden />
+      <span>
         {videoType.join(" + ")} · {theme}
         {subtheme ? ` · ${subtheme}` : ""}
       </span>
       {canEdit && (
-        <span className="flex items-center gap-1 text-[10.5px] text-ink-soft font-medium">
-          <EditIcon className="w-3 h-3" />
-          Edit
-        </span>
+        <EditIcon className="w-3 h-3 text-ink-faint sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
       )}
     </button>
   );

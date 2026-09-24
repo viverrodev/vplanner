@@ -43,7 +43,9 @@ export const ROLES = [
   { id: "filmer", name: "Filmer", colorVar: "--pink", stages: ["film"] as PipelineStage[] },
   { id: "editor", name: "Editor", colorVar: "--violet", stages: ["edit"] as PipelineStage[] },
   { id: "packager", name: "Packager", colorVar: "--gold", stages: ["package"] as PipelineStage[] },
-  { id: "publisher", name: "Publisher", colorVar: "--green", stages: ["publish"] as PipelineStage[] },
+  // Shown as "Scheduler": handles the long-video Publish stage AND marks
+  // shorts as posted. (The id stays "publisher" in the database.)
+  { id: "publisher", name: "Scheduler", colorVar: "--green", stages: ["publish"] as PipelineStage[] },
 ] as const;
 
 export function defaultRoleColor(roleId: RoleId): string {

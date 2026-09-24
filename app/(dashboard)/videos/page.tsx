@@ -43,10 +43,13 @@ export default async function VideosPage({
   let query = supabase
     .from("long_video_projects")
     .select(
-      "id, title, stage, expected_date, theme, subtheme, video_type, project_thumbnails(storage_path, position)"
+      "id, entry_number, title, stage, expected_date, theme, subtheme, video_type, project_thumbnails(storage_path, position)"
     )
     .eq("team_id", currentTeam.id)
-    .order("created_at", { ascending: false })
+    // Posting order: earliest expected date first, undated at the end —
+    // the same order the entry numbers follow (migration 0028).
+    .order("expected_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true })
     // Only the cover thumbnail per project — not every thumbnail idea.
     .order("position", { referencedTable: "project_thumbnails", ascending: true })
     .limit(1, { referencedTable: "project_thumbnails" });
@@ -166,7 +169,8 @@ export default async function VideosPage({
         </div>
       ) : isTable ? (
         <div className="rounded-xl border border-line/10 overflow-hidden">
-          <div className="grid grid-cols-[56px_1fr] sm:grid-cols-[64px_1fr_110px_160px_110px_110px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+          <div className="grid grid-cols-[40px_56px_1fr] sm:grid-cols-[48px_64px_1fr_110px_160px_110px_110px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+            <span className="text-right">#</span>
             <span></span>
             <span>Title</span>
             <span className="hidden sm:block">Type</span>
@@ -183,8 +187,9 @@ export default async function VideosPage({
               <Link
                 key={p.id}
                 href={`/videos/${p.id}`}
-                className="grid grid-cols-[56px_1fr] sm:grid-cols-[64px_1fr_110px_160px_110px_110px] gap-3 px-3 py-2 items-center border-t border-line/10 hover:bg-surface-2 transition-colors"
+                className="grid grid-cols-[40px_56px_1fr] sm:grid-cols-[48px_64px_1fr_110px_160px_110px_110px] gap-3 px-3 py-2 items-center border-t border-line/10 hover:bg-surface-2 transition-colors"
               >
+                <span className="text-right font-mono text-[12px] text-ink-faint tabular-nums">{p.entry_number}</span>
                 <span
                   className="w-14 h-8 rounded-md overflow-hidden flex-shrink-0"
                   style={{
@@ -258,6 +263,9 @@ export default async function VideosPage({
                     style={{ background: c }}
                   >
                     {STAGE_LABELS[p.stage as PipelineStage]}
+                  </span>
+                  <span className="absolute top-2.5 right-2.5 font-mono text-[11px] font-bold px-2 py-1 rounded-full bg-black/55 text-white backdrop-blur-sm tabular-nums">
+                    #{p.entry_number}
                   </span>
                 </div>
                 <div className="p-4 flex flex-col gap-2 flex-1">

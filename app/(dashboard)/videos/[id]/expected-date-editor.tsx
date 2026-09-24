@@ -1,90 +1,69 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { updateExpectedDate } from "./actions";
-import { useToast } from "@/components/ui/toast-provider";
+import { useAction } from "@/lib/hooks/use-action";
 import { formatDate } from "@/modules/long-videos/lib/stages";
 import { EditIcon, CalendarIcon } from "@/components/ui/icons";
+import { DatePicker } from "@/components/ui/date-picker";
 
+/**
+ * Click the date → calendar opens → pick a day (saved instantly), or
+ * click outside / press Esc to cancel. Dots mark days that already have
+ * another long video planned.
+ */
 export function ExpectedDateEditor({
   projectId,
   teamId,
   date,
   canEdit,
+  otherDates = [],
 }: {
   projectId: string;
   teamId: string;
   date: string | null;
   canEdit: boolean;
+  otherDates?: string[];
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(date ?? "");
-  const [pending, startTransition] = useTransition();
-  const toast = useToast();
+  const [shown, setShown] = useState(date);
+  useEffect(() => setShown(date), [date]);
 
-  function save() {
-    startTransition(async () => {
-      const result = await updateExpectedDate(projectId, teamId, draft);
-      if (result?.error) toast.error(result.error);
-      else {
-        toast.success("Expected date updated");
-        setEditing(false);
-      }
-    });
-  }
+  const save = useAction(updateExpectedDate, {
+    optimistic: (_p, _t, d) => setShown(d || null),
+    success: (_p, _t, d) => (d ? `Expected date set to ${formatDate(d)}` : "Expected date cleared"),
+    onError: () => setShown(date),
+  });
 
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <input
-          type="date"
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          className="rounded-lg border border-amber/50 bg-surface px-2.5 py-1.5 text-[13px] outline-none focus:ring-2 focus:ring-amber"
-        />
-        <button
-          onClick={save}
-          disabled={pending}
-          className="rounded-lg bg-amber text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-50"
-        >
-          Save
-        </button>
-        <button
-          onClick={() => {
-            setDraft(date ?? "");
-            setEditing(false);
-          }}
-          className="rounded-lg border border-line/15 text-ink-soft text-[12px] font-semibold px-3 py-1.5"
-        >
-          Cancel
-        </button>
-      </div>
-    );
-  }
+  const counts = new Map<string, number>();
+  otherDates.forEach((d) => counts.set(d, (counts.get(d) ?? 0) + 1));
+
+  const face = (
+    <>
+      <CalendarIcon className="w-3.5 h-3.5 text-ink-soft" />
+      <span>{shown ? formatDate(shown) : canEdit ? "Add expected date" : "No expected date"}</span>
+      {canEdit && (
+        <EditIcon className="w-3 h-3 text-ink-soft sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
+      )}
+    </>
+  );
+
+  const cls = `group inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium transition-colors ${
+    shown ? "text-ink-soft" : "text-ink-faint"
+  }`;
+
+  if (!canEdit) return <span className={cls}>{face}</span>;
 
   return (
-    <button
-      onClick={() => canEdit && setEditing(true)}
-      disabled={!canEdit}
-      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${
-        canEdit ? "cursor-pointer hover:border-amber" : "cursor-default"
-      }`}
-      style={{
-        borderColor: "rgb(var(--amber) / 0.35)",
-        background: "rgb(var(--amber) / 0.1)",
-      }}
+    <DatePicker
+      value={shown}
+      onChange={(d) => d !== shown && save.run(projectId, teamId, d)}
+      onClear={() => save.run(projectId, teamId, "")}
+      dayInfo={(d) => ({ count: counts.get(d) ?? 0, limit: 99 })}
+      ariaLabel="Expected date"
+      disabled={save.pending}
+      triggerClassName={`${cls} cursor-pointer hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber`}
     >
-      <CalendarIcon className="w-4 h-4 text-amber" />
-      <span className="text-[13.5px] font-bold text-amber">
-        {date ? formatDate(date) : "No expected date set"}
-      </span>
-      {canEdit && (
-        <span className="flex items-center gap-1 text-[10.5px] text-ink-soft font-medium">
-          <EditIcon className="w-3 h-3" />
-          Edit
-        </span>
-      )}
-    </button>
+      {face}
+    </DatePicker>
   );
 }
