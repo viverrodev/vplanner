@@ -21,7 +21,7 @@ function TeamAvatar({ team, size }: { team: TeamSummary; size: "sm" | "md" }) {
     return (
       <span className={`${dim} rounded-md overflow-hidden flex-shrink-0`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={team.logoUrl} alt="" className="w-full h-full object-cover" />
+        <img loading="lazy" decoding="async" src={team.logoUrl} alt="" className="w-full h-full object-cover" />
       </span>
     );
   }

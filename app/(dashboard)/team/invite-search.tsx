@@ -87,7 +87,7 @@ export function InviteSearch({ teamId }: { teamId: string }) {
           >
             {selected.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selected.avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={selected.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               initialsFor(name)
             )}
@@ -161,7 +161,7 @@ export function InviteSearch({ teamId }: { teamId: string }) {
                   >
                     {r.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
                       initialsFor(name)
                     )}

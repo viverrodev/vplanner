@@ -39,22 +39,22 @@ export default async function PublicProfilePage({
 
   const isSelf = profile.id === currentUser?.id;
 
-  const { data: visibleTeams } = await supabase.rpc("get_visible_teams", {
-    target_user_id: profile.id,
-  });
+  const [{ data: visibleTeams }, { data: myMemberships }] = await Promise.all([
+    supabase.rpc("get_visible_teams", { target_user_id: profile.id }),
+    currentUser && !isSelf
+      ? supabase
+          .from("team_members")
+          .select("team_id")
+          .eq("user_id", currentUser.id)
+          .eq("status", "active")
+      : Promise.resolve({ data: [] as { team_id: string }[] }),
+  ]);
 
   // get_visible_teams already includes any team the viewer genuinely
-  // shares with this person, regardless of their privacy toggle (same
-  // reasoning as everywhere else: if you're already teammates, you
-  // already know) — so the intersection with the viewer's own teams is
-  // always accurate here, never affected by the other person's setting.
+  // shares with this person, regardless of their privacy toggle — so the
+  // intersection with the viewer's own teams is always accurate.
   let commonTeams: { id: string; name: string; color: string; logo_url: string | null }[] = [];
   if (currentUser && !isSelf) {
-    const { data: myMemberships } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", currentUser.id)
-      .eq("status", "active");
     const myTeamIds = new Set((myMemberships ?? []).map((m) => m.team_id));
     commonTeams = (visibleTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id));
   }
@@ -80,7 +80,7 @@ export default async function PublicProfilePage({
           >
             {profile.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
             ) : (
               initialsFor(name)
             )}
@@ -124,7 +124,7 @@ export default async function PublicProfilePage({
                   >
                     {t.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={t.logo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       t.name.slice(0, 2).toUpperCase()
                     )}
@@ -158,7 +158,7 @@ export default async function PublicProfilePage({
                 >
                   {t.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={t.logo_url} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={t.logo_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     t.name.slice(0, 2).toUpperCase()
                   )}

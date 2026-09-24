@@ -1,16 +1,17 @@
+import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Uses the SECRET service_role key, which bypasses Row Level Security
  * entirely. Because of that:
- *   - This must NEVER be imported into a Client Component or anything
- *     that ends up in the browser bundle.
+ *   - `import "server-only"` above makes the BUILD FAIL if this file is
+ *     ever imported into a Client Component — it can't leak by accident.
  *   - Every function that calls this must independently verify the
- *     caller is actually allowed to do what they're asking (e.g. "is
- *     this person the team's master?") BEFORE using it — this client
- *     itself enforces nothing.
- *   - SUPABASE_SERVICE_ROLE_KEY (no NEXT_PUBLIC_ prefix) lives only in
- *     server environment variables and is never sent to the client.
+ *     caller is allowed to do what they're asking BEFORE using it.
+ *   - Golden rule: only ever write values the user could NOT have
+ *     edited themselves (their verified user id, rows they have no
+ *     UPDATE access to, constants). Never trust a user-editable row as
+ *     the source of an admin write.
  */
 export function createAdminClient() {
   return createSupabaseClient(

@@ -33,11 +33,11 @@ export default async function TeamPage() {
     return <div className="p-8 text-sm text-ink-soft">Create a team first.</div>;
   }
 
-  const membership = await getMembership(supabase, currentTeam.id);
-  const userIsMaster = isMaster(membership?.roles ?? []);
-  const currentUser = await getCachedUser();
-
-  const [{ data: team }, { data: members }, { data: connections }, { data: pendingInvites }] = await Promise.all([
+  const [membership, currentUser, roleColors, [{ data: team }, { data: members }, { data: connections }, { data: pendingInvites }]] = await Promise.all([
+    getMembership(supabase, currentTeam.id),
+    getCachedUser(),
+    getRoleColors(supabase, currentTeam.id),
+    Promise.all([
     supabase.from("teams").select("id, name, logo_url, color, owner_id").eq("id", currentTeam.id).single(),
     supabase
       .from("team_members")
@@ -52,9 +52,22 @@ export default async function TeamPage() {
       .eq("status", "pending")
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
+    ]),
   ]);
+  const userIsMaster = isMaster(membership?.roles ?? []);
+  const viewerIsOwner = !!currentUser && currentUser.id === team?.owner_id;
 
-  const roleColors = await getRoleColors(supabase, currentTeam.id);
+  // The owner's live (pending, unexpired) ownership request, if any —
+  // so it can be shown and canceled.
+  const { data: pendingTransferRow } = viewerIsOwner
+    ? await supabase
+        .from("ownership_transfer_requests")
+        .select("id, to_user_id, expires_at")
+        .eq("team_id", currentTeam.id)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle()
+    : { data: null };
 
   const memberRows: MemberRow[] = (members ?? []).map((m) => {
     const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null; avatar_url: string | null } | null;
@@ -116,6 +129,7 @@ export default async function TeamPage() {
                 member={m}
                 roleColors={roleColors}
                 isSelf={m.userId === currentUser?.id}
+                viewerIsOwner={viewerIsOwner}
               />
             ) : (
               <div key={m.teamMemberId} className="flex items-center gap-3 py-3 border-b border-line/10 last:border-none flex-wrap">
@@ -127,7 +141,7 @@ export default async function TeamPage() {
                     >
                       {m.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        <img loading="lazy" decoding="async" src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         initialsFor(m.name)
                       )}
@@ -140,7 +154,7 @@ export default async function TeamPage() {
                   >
                     {m.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
                       initialsFor(m.name)
                     )}
@@ -274,6 +288,16 @@ export default async function TeamPage() {
           </p>
           <TransferOwnership
             teamId={currentTeam.id}
+            pendingTransfer={
+              pendingTransferRow
+                ? {
+                    name:
+                      memberRows.find((m) => m.userId === pendingTransferRow.to_user_id)?.name ??
+                      "a teammate",
+                    expiresAt: pendingTransferRow.expires_at,
+                  }
+                : null
+            }
             candidates={memberRows
               .filter((m) => m.userId && m.userId !== currentUser?.id && m.status === "active")
               .map((m) => ({ userId: m.userId as string, name: m.name, avatarUrl: m.avatarUrl }))}

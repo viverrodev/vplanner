@@ -17,17 +17,18 @@ export default async function SettingsPage() {
   const supabase = await createClient();
   const user = await getCachedUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("username, full_name, email, bio, avatar_url, teams_visible")
-    .eq("id", user!.id)
-    .single();
-
-  const { data: memberships } = await supabase
-    .from("team_members")
-    .select("team_id, status, member_roles(role), teams(id, name, color, logo_url)")
-    .eq("user_id", user!.id)
-    .eq("status", "active");
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("username, full_name, email, bio, avatar_url, teams_visible")
+      .eq("id", user!.id)
+      .single(),
+    supabase
+      .from("team_members")
+      .select("team_id, status, member_roles(role), teams(id, name, color, logo_url)")
+      .eq("user_id", user!.id)
+      .eq("status", "active"),
+  ]);
 
   const name = buildDisplayName(profile?.username, profile?.full_name, profile?.email ?? user?.email);
 
@@ -101,7 +102,7 @@ export default async function SettingsPage() {
                 >
                   {team.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={team.logo_url} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={team.logo_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     team.name.slice(0, 2).toUpperCase()
                   )}

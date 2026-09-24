@@ -472,7 +472,7 @@ export function MentionInput({
                       className="rounded-md overflow-hidden border border-line/10 hover:border-amber transition-colors aspect-square"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g.preview} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={g.preview} alt="" className="w-full h-full object-cover" />
                     </button>
                   ))}
               </div>

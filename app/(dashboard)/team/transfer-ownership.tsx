@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { requestOwnershipTransfer } from "./actions";
+import { requestOwnershipTransfer, cancelOwnershipTransfer } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { useToast } from "@/components/ui/toast-provider";
 import { colorForId, initialsFor } from "@/lib/avatar";
@@ -11,9 +11,11 @@ type Candidate = { userId: string; name: string; avatarUrl: string | null };
 export function TransferOwnership({
   teamId,
   candidates,
+  pendingTransfer,
 }: {
   teamId: string;
   candidates: Candidate[];
+  pendingTransfer: { name: string; expiresAt: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Candidate | null>(null);
@@ -52,6 +54,44 @@ export function TransferOwnership({
     });
   }
 
+  async function handleCancel() {
+    if (!pendingTransfer) return;
+    const ok = await confirm({
+      title: "Cancel the ownership request?",
+      description: `${pendingTransfer.name} won't be able to accept it anymore.`,
+      confirmLabel: "Cancel request",
+      danger: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const result = await cancelOwnershipTransfer(teamId);
+      if (result?.error) toast.error(result.error);
+      else toast.success("Ownership request canceled");
+    });
+  }
+
+  if (pendingTransfer) {
+    const minutesLeft = Math.max(
+      0,
+      Math.round((new Date(pendingTransfer.expiresAt).getTime() - Date.now()) / 60000)
+    );
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-[13px] text-ink-soft" suppressHydrationWarning>
+          Waiting for <span className="font-semibold text-ink">{pendingTransfer.name}</span> to
+          respond · expires in {minutesLeft} min
+        </p>
+        <button
+          onClick={handleCancel}
+          disabled={pending}
+          className="rounded-lg border border-red/40 text-red font-semibold px-3.5 py-2 text-[13px] disabled:opacity-40 hover:bg-red/10 transition-colors"
+        >
+          {pending ? "Canceling…" : "Cancel request"}
+        </button>
+      </div>
+    );
+  }
+
   if (candidates.length === 0) {
     return (
       <p className="text-[12.5px] text-ink-faint">
@@ -76,7 +116,7 @@ export function TransferOwnership({
               >
                 {selected.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selected.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  <img loading="lazy" decoding="async" src={selected.avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   initialsFor(selected.name)
                 )}
@@ -107,7 +147,7 @@ export function TransferOwnership({
                 >
                   {c.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     initialsFor(c.name)
                   )}

@@ -9,6 +9,7 @@ import { ConfirmProvider } from "@/components/ui/confirm-provider";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { displayName, colorForId } from "@/lib/avatar";
 import { signOut } from "./actions";
+import { NOTIFICATION_SELECT } from "@/lib/notification-select";
 
 // Every route under here reads the session and shows per-user data —
 // this must never be statically optimized or cached at the Next.js
@@ -23,20 +24,22 @@ export default async function DashboardLayout({
   const supabase = await createClient();
   const user = await getCachedUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("username, full_name, email, avatar_url")
-    .eq("id", user!.id)
-    .single();
-
-  const { teams, currentTeam } = await getTeamsAndCurrent(supabase);
-
-  const { data: notifications } = await supabase
-    .from("notifications")
-    .select("id, body, project_id, stage, is_read, created_at, kind, metadata, team_invite_id, team_invites(status), ownership_transfer_id, ownership_transfer_requests(status)")
-    .eq("recipient_id", user!.id)
-    .order("created_at", { ascending: false })
-    .limit(25);
+  // Three independent reads — run them at the same time instead of one
+  // after another (one round trip of waiting instead of three).
+  const [{ data: profile }, { teams, currentTeam }, { data: notifications }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("username, full_name, email, avatar_url")
+      .eq("id", user!.id)
+      .single(),
+    getTeamsAndCurrent(supabase),
+    supabase
+      .from("notifications")
+      .select(NOTIFICATION_SELECT)
+      .eq("recipient_id", user!.id)
+      .order("created_at", { ascending: false })
+      .limit(25),
+  ]);
 
   const resolvedName = displayName(profile?.username, profile?.full_name, profile?.email ?? user?.email);
   const resolvedEmail = profile?.email ?? user?.email ?? "";

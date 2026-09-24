@@ -1,5 +1,6 @@
 "use client";
 
+import { compressImage, IMAGE_PRESETS, safeFileName, UPLOAD_CACHE_CONTROL } from "@/lib/image/compress";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -53,8 +54,11 @@ export default function SetPasswordPage() {
     }
 
     if (avatarFile) {
-      const path = `${userData.user.id}/avatar-${Date.now()}-${avatarFile.name}`;
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, avatarFile);
+      const file = await compressImage(avatarFile, IMAGE_PRESETS.avatar);
+      const path = `${userData.user.id}/avatar-${Date.now()}-${safeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { cacheControl: UPLOAD_CACHE_CONTROL, contentType: file.type });
       if (!uploadError) {
         const { data } = supabase.storage.from("avatars").getPublicUrl(path);
         await updateAvatar(data.publicUrl);
@@ -99,7 +103,7 @@ export default function SetPasswordPage() {
             >
               {avatarPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={avatarPreview} alt="" className="w-full h-full object-cover" />
               ) : (
                 initialsFor(fullName || username || "?")
               )}

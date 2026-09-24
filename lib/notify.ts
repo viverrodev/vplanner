@@ -1,4 +1,6 @@
+import "server-only";
 import { displayName } from "./avatar";
+import { createAdminClient } from "./supabase/admin";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -27,4 +29,35 @@ export async function teamMeta(supabase: SupabaseLike, teamId: string) {
     logoUrl: data?.logo_url ?? null,
     color: data?.color ?? "#E8630D",
   };
+}
+
+export type NotificationInsert = {
+  recipient_id: string;
+  body: string;
+  kind?: string;
+  metadata?: Record<string, unknown>;
+  project_id?: string | null;
+  stage?: string | null;
+  team_invite_id?: string | null;
+  ownership_transfer_id?: string | null;
+};
+
+/**
+ * The ONLY way notifications get created. Users have no INSERT access
+ * to the notifications table (migration 0022) — so nobody can forge a
+ * notification to a teammate. Call this only from a server action that
+ * has already verified the actor is allowed to trigger it.
+ */
+export async function sendNotifications(
+  rows: NotificationInsert | NotificationInsert[]
+): Promise<{ error: string | null }> {
+  const list = (Array.isArray(rows) ? rows : [rows]).filter((r) => !!r.recipient_id);
+  if (list.length === 0) return { error: null };
+
+  const { error } = await createAdminClient().from("notifications").insert(list);
+  if (error) {
+    console.error("[sendNotifications]", error.message);
+    return { error: error.message };
+  }
+  return { error: null };
 }

@@ -98,3 +98,25 @@ body {
 ::selection {
   background: rgb(var(--amber) / 0.2);
 }
+
+/* Loading skeleton shimmer — a soft sweep rather than a blink. Respects
+   reduced-motion (falls back to a static tint). */
+@keyframes skeleton-sweep {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--surface-2)) 0%,
+    rgb(var(--surface-2)) 35%,
+    rgb(var(--ink) / 0.06) 50%,
+    rgb(var(--surface-2)) 65%,
+    rgb(var(--surface-2)) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}

@@ -19,7 +19,10 @@ export async function searchInvitableUsers(
   const membership = await getMembership(supabase, teamId);
   if (!isMaster(membership?.roles ?? [])) return [];
 
-  const q = query.trim();
+  // Strip characters that have meaning inside a PostgREST filter string
+  // (commas/parens split or nest conditions; % and * are wildcards) so a
+  // search can't rewrite the query itself.
+  const q = query.replace(/[,()*%\\"]/g, " ").trim().slice(0, 64);
   if (q.length < 2) return [];
 
   const [{ data: existingMembers }, { data: pendingInvites }] = await Promise.all([

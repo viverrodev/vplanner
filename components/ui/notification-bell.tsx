@@ -13,6 +13,7 @@ import { BellIcon } from "./icons";
 import { useToast } from "./toast-provider";
 import { createClient } from "@/lib/supabase/client";
 import { initialsFor } from "@/lib/avatar";
+import { NOTIFICATION_SELECT } from "@/lib/notification-select";
 
 type Actor = { name: string; avatarUrl: string | null };
 type Team = { name: string; logoUrl: string | null; color: string };
@@ -65,7 +66,7 @@ function LeadingVisual({ n }: { n: NotificationItem }) {
       >
         {m.actor.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={m.actor.avatarUrl} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={m.actor.avatarUrl} alt="" className="w-full h-full object-cover" />
         ) : (
           initialsFor(m.actor.name)
         )}
@@ -80,7 +81,7 @@ function LeadingVisual({ n }: { n: NotificationItem }) {
       >
         {m.team.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={m.team.logoUrl} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={m.team.logoUrl} alt="" className="w-full h-full object-cover" />
         ) : (
           m.team.name.slice(0, 2).toUpperCase()
         )}
@@ -218,7 +219,17 @@ export function NotificationBell({
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const toast = useToast();
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // The bell owns its own list on the client. The server layout provides
+  // the initial 25; after that, realtime events patch exactly the row
+  // that changed — instead of re-rendering the whole page on every
+  // notification (which is what router.refresh() used to do).
+  const [items, setItems] = useState<NotificationItem[]>(notifications);
+  useEffect(() => {
+    setItems(notifications);
+  }, [notifications]);
+
+  const unreadCount = items.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     const supabase = createClient();
@@ -227,13 +238,50 @@ export function NotificationBell({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` },
-        () => router.refresh()
+        async (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id?: string }).id;
+            if (oldId) setItems((cur) => cur.filter((n) => n.id !== oldId));
+            return;
+          }
+          const id = (payload.new as { id?: string }).id;
+          if (!id) return;
+          // Refetch just this one row (with its joined invite/transfer
+          // status) — RLS guarantees it's really ours.
+          const { data } = await supabase
+            .from("notifications")
+            .select(NOTIFICATION_SELECT)
+            .eq("id", id)
+            .maybeSingle();
+          if (!data) return;
+          const row = data as unknown as NotificationItem;
+          setItems((cur) => {
+            if (payload.eventType === "INSERT") {
+              return [row, ...cur.filter((n) => n.id !== id)].slice(0, 50);
+            }
+            return cur.map((n) => (n.id === id ? row : n));
+          });
+        }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, router]);
+  }, [userId]);
+
+  function markReadLocally(id: string) {
+    setItems((cur) => cur.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    startTransition(() => {
+      markNotificationRead(id);
+    });
+  }
+
+  function markAllReadLocally() {
+    setItems((cur) => cur.map((n) => ({ ...n, is_read: true })));
+    startTransition(() => {
+      markAllNotificationsRead();
+    });
+  }
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -250,9 +298,7 @@ export function NotificationBell({
   function handleClick(n: NotificationItem) {
     if (isActionable(n)) return; // handled by its own Accept/Decline buttons
     setOpen(false);
-    startTransition(() => {
-      markNotificationRead(n.id);
-    });
+    if (!n.is_read) markReadLocally(n.id);
     if (n.project_id) {
       router.push(n.stage ? `/videos/${n.project_id}?tab=${n.stage}` : `/videos/${n.project_id}`);
     }
@@ -278,7 +324,9 @@ export function NotificationBell({
           ? "You joined the team"
           : "Invite declined"
       );
-      markNotificationRead(n.id);
+      markReadLocally(n.id);
+      // Team membership may have changed (joined a team / became owner),
+      // so this one genuinely needs a fresh server render.
       router.refresh();
     }
   }
@@ -306,7 +354,7 @@ export function NotificationBell({
             </span>
             {unreadCount > 0 && (
               <button
-                onClick={() => startTransition(() => markAllNotificationsRead())}
+                onClick={markAllReadLocally}
                 className="text-[11.5px] font-semibold text-amber"
               >
                 Mark all read
@@ -314,12 +362,12 @@ export function NotificationBell({
             )}
           </div>
           <div className="max-h-[380px] overflow-y-auto styled-scroll">
-            {notifications.length === 0 ? (
+            {items.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12.5px] text-ink-faint">
                 Nothing yet.
               </div>
             ) : (
-              notifications.map((n) => {
+              items.map((n) => {
                 const status = actionableStatus(n);
                 const isPendingAction = isActionable(n) && status === "pending";
                 const visual = <LeadingVisual n={n} />;

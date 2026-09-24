@@ -26,12 +26,17 @@ export function MemberManager({
   member,
   roleColors,
   isSelf,
+  viewerIsOwner,
 }: {
   teamId: string;
   member: MemberRow;
   roleColors: Record<RoleId, string>;
   isSelf: boolean;
+  viewerIsOwner: boolean;
 }) {
+  const memberIsMaster = member.roles.includes("master");
+  // Only the owner can remove a Master from the team.
+  const canKick = !member.isOwner && (viewerIsOwner || !memberIsMaster);
   const [open, setOpen] = useState(false);
   const [draftRoles, setDraftRoles] = useState<RoleId[]>(member.roles);
   const [pending, startTransition] = useTransition();
@@ -79,7 +84,7 @@ export function MemberManager({
             >
               {member.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 initialsFor(member.name)
               )}
@@ -92,7 +97,7 @@ export function MemberManager({
           >
             {member.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               initialsFor(member.name)
             )}
@@ -145,7 +150,7 @@ export function MemberManager({
               >
                 {open ? "Close" : "Manage"}
               </button>
-              {!member.isOwner && (
+              {canKick && (
                 <button
                   onClick={handleKick}
                   disabled={pending}
@@ -164,14 +169,21 @@ export function MemberManager({
           <div className="flex flex-wrap gap-1.5 mb-2">
             {ROLES.map((r) => {
               const active = draftRoles.includes(r.id);
-              const locked = r.id === "master" && member.isOwner;
+              const ownerLocked = r.id === "master" && member.isOwner;
+              const locked = ownerLocked || (r.id === "master" && !viewerIsOwner);
               return (
                 <button
                   key={r.id}
                   type="button"
                   disabled={locked}
                   onClick={() => !locked && toggleRole(r.id)}
-                  title={locked ? "The team owner is always Master" : undefined}
+                  title={
+                    ownerLocked
+                      ? "The team owner is always Master"
+                      : locked
+                        ? "Only the team owner can grant or remove Master"
+                        : undefined
+                  }
                   className={`rounded-full px-3 py-1 text-[11.5px] font-semibold border transition-colors ${
                     active ? "text-white" : "border-line/15 text-ink-soft"
                   } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}

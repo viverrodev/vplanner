@@ -33,7 +33,7 @@ export function ImageLightbox({
         <CloseIcon className="w-5 h-5" />
       </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <img loading="lazy" decoding="async"
         src={url}
         alt={alt}
         onClick={(e) => e.stopPropagation()}

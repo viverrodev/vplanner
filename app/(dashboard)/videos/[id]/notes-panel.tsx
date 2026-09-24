@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { compressImage, IMAGE_PRESETS, safeFileName, UPLOAD_CACHE_CONTROL } from "@/lib/image/compress";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CommentDeleteButton } from "./comment-delete-button";
 import { relativeTime } from "@/lib/relative-time";
@@ -32,6 +33,17 @@ export type CommentDisplay = {
   body: string;
   canDelete: boolean;
   attachments: AttachmentDisplay[];
+  /** true while an optimistic (not yet saved) message is being sent */
+  pending?: boolean;
+};
+
+/** The viewer, so their own message can be drawn before the server confirms it. */
+export type CommentAuthor = {
+  id: string;
+  name: string;
+  avatarColor: string;
+  avatarUrl: string | null;
+  roles: { name: string; color: string }[];
 };
 
 function formatBytes(bytes: number) {
@@ -48,14 +60,16 @@ export function NotesPanel({
   postAction,
   mentionCatalog,
   roleColors,
+  me,
 }: {
   stageLabel: string;
   comments: CommentDisplay[];
   canComment: boolean;
   projectId: string;
-  postAction: (formData: FormData) => void;
+  postAction: (formData: FormData) => Promise<{ error?: string }>;
   mentionCatalog: MentionTarget[];
   roleColors: Record<RoleId, string>;
+  me: CommentAuthor | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -65,20 +79,44 @@ export function NotesPanel({
   const router = useRouter();
   const listRef = useRef<HTMLDivElement>(null);
   const expandedListRef = useRef<HTMLDivElement>(null);
+  const [, startSend] = useTransition();
+
+  // Optimistic list: your message shows up the instant you hit send
+  // (slightly faded, "Sending…"), then is swapped for the real saved
+  // one when the server responds. If sending fails it just disappears
+  // and a toast explains why — nothing to clean up by hand.
+  const [visibleComments, addOptimistic] = useOptimistic(
+    comments,
+    (state: CommentDisplay[], added: CommentDisplay) => [...state, added]
+  );
 
   // Live updates: if anyone else posts or deletes a note on this project
   // while you're looking at it, re-fetch so you see it without having to
   // refresh the page yourself.
   useEffect(() => {
+    // Several events can arrive at once (e.g. a note + its attachments);
+    // coalesce them into a single refresh.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => router.refresh(), 250);
+    };
     const channel = supabase
       .channel(`project-comments-${projectId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "project_comments", filter: `project_id=eq.${projectId}` },
-        () => router.refresh()
+        (payload) => {
+          // Our own new note is already refreshed by the send action —
+          // don't render the whole page a second time for it.
+          const authorId = (payload.new as { author_id?: string } | null)?.author_id;
+          if (payload.eventType === "INSERT" && me && authorId === me.id) return;
+          scheduleRefresh();
+        }
       )
       .subscribe();
     return () => {
+      if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,7 +127,7 @@ export function NotesPanel({
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
     expandedListRef.current?.scrollTo({ top: expandedListRef.current.scrollHeight, behavior: "smooth" });
-  }, [comments.length]);
+  }, [visibleComments.length]);
 
   // Jump straight to the bottom the instant the fullscreen view opens —
   // otherwise it renders scrolled to the top and you have to scroll down
@@ -109,49 +147,87 @@ export function NotesPanel({
     return () => document.removeEventListener("keydown", onKey);
   }, [expanded]);
 
-  async function handleSend(text: string, files: File[], gifUrls: string[] = []) {
-    setUploading(true);
-    const uploaded: { name: string; path: string; size: number; type: string }[] = [];
+  function handleSend(text: string, files: File[], gifUrls: string[] = []) {
+    const previewUrls: string[] = [];
+    const optimisticAttachments: AttachmentDisplay[] = [
+      ...files.map((file, i) => {
+        const isImage = file.type.startsWith("image/");
+        const url = isImage ? URL.createObjectURL(file) : "#";
+        if (isImage) previewUrls.push(url);
+        return { id: `tmp-file-${i}`, name: file.name, url, size: file.size, mimeType: file.type || "application/octet-stream" };
+      }),
+      ...gifUrls.map((url, i) => ({ id: `tmp-gif-${i}`, name: "GIF", url, size: 0, mimeType: "image/gif" })),
+    ];
 
-    for (const file of files) {
-      const path = `${projectId}/${crypto.randomUUID()}-${file.name}`;
-      const { error } = await supabase.storage.from("comment-attachments").upload(path, file);
-      if (error) {
-        toast.error(`Couldn't upload ${file.name}.`);
-        continue;
+    if (files.length > 0) setUploading(true);
+
+    startSend(async () => {
+      if (me) {
+        addOptimistic({
+          id: `tmp-${crypto.randomUUID()}`,
+          name: me.name,
+          avatarColor: me.avatarColor,
+          avatarUrl: me.avatarUrl,
+          roles: me.roles,
+          createdAt: new Date().toISOString(),
+          body: text,
+          canDelete: false,
+          attachments: optimisticAttachments,
+          pending: true,
+        });
       }
-      uploaded.push({ name: file.name, path, size: file.size, type: file.type || "application/octet-stream" });
-    }
 
-    gifUrls.forEach((url) => {
-      uploaded.push({ name: "GIF", path: url, size: 0, type: "image/gif" });
+      const uploaded: { name: string; path: string; size: number; type: string }[] = [];
+      for (const original of files) {
+        const file = await compressImage(original, IMAGE_PRESETS.attachment);
+        const path = `${projectId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+        const { error } = await supabase.storage
+          .from("comment-attachments")
+          .upload(path, file, { cacheControl: UPLOAD_CACHE_CONTROL, contentType: file.type || undefined });
+        if (error) {
+          toast.error(`Couldn't upload ${file.name}.`);
+          continue;
+        }
+        // Keep the ORIGINAL name for display/download; the stored copy may be compressed.
+        uploaded.push({ name: original.name, path, size: file.size, type: file.type || "application/octet-stream" });
+      }
+      gifUrls.forEach((url) => {
+        uploaded.push({ name: "GIF", path: url, size: 0, type: "image/gif" });
+      });
+      setUploading(false);
+
+      const fd = new FormData();
+      fd.set("body", text);
+      fd.set("attachments", JSON.stringify(uploaded));
+      const result = await postAction(fd);
+      if (result?.error) toast.error(result.error);
+
+      previewUrls.forEach((u) => URL.revokeObjectURL(u));
     });
-
-    setUploading(false);
-
-    const fd = new FormData();
-    fd.set("body", text);
-    fd.set("attachments", JSON.stringify(uploaded));
-    postAction(fd);
   }
 
   function renderItems() {
     return (
       <>
-        {comments.length === 0 && (
+        {visibleComments.length === 0 && (
           <p className="text-[12px] text-ink-faint">
             No notes on this stage yet.
           </p>
         )}
-        {comments.map((c) => (
-          <div key={c.id} className="relative flex gap-2 border-b border-line/10 pb-2.5 pr-5 last:border-none">
+        {visibleComments.map((c) => (
+          <div
+            key={c.id}
+            className={`relative flex gap-2 border-b border-line/10 pb-2.5 pr-5 last:border-none transition-opacity ${
+              c.pending ? "opacity-60" : ""
+            }`}
+          >
             <span
               className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 mt-0.5 overflow-hidden"
               style={{ background: c.avatarColor }}
             >
               {c.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 initialsFor(c.name)
               )}
@@ -189,7 +265,7 @@ export function NotesPanel({
                         className="block"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={a.url}
                           alt={a.name}
                           className="max-w-[160px] max-h-[120px] rounded-lg border border-line/10 object-cover hover:opacity-90 transition-opacity"
@@ -210,10 +286,10 @@ export function NotesPanel({
                 </div>
               )}
               <div className="text-[10.5px] text-ink-soft mt-1">
-                {relativeTime(c.createdAt)}
+                {c.pending ? "Sending…" : relativeTime(c.createdAt)}
               </div>
             </div>
-            {c.canDelete && (
+            {c.canDelete && !c.pending && (
               <div className="absolute top-0 right-0">
                 <CommentDeleteButton commentId={c.id} projectId={projectId} />
               </div>

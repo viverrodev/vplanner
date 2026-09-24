@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isOwnStorageUrl } from "@/lib/storage-url";
 
 export type UpdateProfileState = { error?: string; success?: boolean } | undefined;
 
@@ -50,6 +51,11 @@ export async function updateAvatar(avatarUrl: string | null) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "Session expired." };
+  // Only images uploaded to your own avatar folder — never an arbitrary
+  // external URL that every teammate's browser would then load.
+  if (avatarUrl !== null && !isOwnStorageUrl(avatarUrl, "avatars", user.id)) {
+    return { error: "Invalid image." };
+  }
 
   const { error } = await supabase
     .from("profiles")

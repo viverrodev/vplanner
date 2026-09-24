@@ -33,7 +33,7 @@ export function MobileTopBar({
       >
         {userAvatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={userAvatarUrl} alt="" className="w-full h-full object-cover" />
         ) : (
           initialsFor(userDisplayName)
         )}

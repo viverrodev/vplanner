@@ -45,7 +45,10 @@ export default async function VideosPage({
       "id, title, stage, expected_date, theme, subtheme, video_type, project_thumbnails(storage_path, position)"
     )
     .eq("team_id", currentTeam.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    // Only the cover thumbnail per project — not every thumbnail idea.
+    .order("position", { referencedTable: "project_thumbnails", ascending: true })
+    .limit(1, { referencedTable: "project_thumbnails" });
 
   if (stageFilter && STAGE_ORDER.includes(stageFilter as PipelineStage)) {
     query = query.eq("stage", stageFilter);
@@ -173,7 +176,7 @@ export default async function VideosPage({
                 >
                   {cover && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumbnailBase + cover.storage_path} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={thumbnailBase + cover.storage_path} alt="" className="w-full h-full object-cover" />
                   )}
                 </span>
                 <span className="text-[13px] font-semibold truncate">{p.title}</span>
@@ -219,7 +222,7 @@ export default async function VideosPage({
                 >
                   {cover ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={thumbnailBase + cover.storage_path}
                       alt=""
                       className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"

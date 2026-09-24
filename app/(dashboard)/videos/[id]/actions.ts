@@ -5,11 +5,34 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STAGE_ORDER, STAGE_LABELS, stageColor } from "@/modules/long-videos/lib/stages";
+import { sendNotifications } from "@/lib/notify";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
-import { isMaster, ROLES } from "@/lib/permissions/roles";
+import { isMaster, ROLES, PIPELINE_STAGES, roleAllowsStage } from "@/lib/permissions/roles";
 import { displayName } from "@/lib/avatar";
 import { buildMentionCatalog, resolveMentionRecipients } from "@/lib/mentions";
+
+/**
+ * Loads a project (via RLS — so it only returns if the caller can see
+ * it) and checks the caller is a Master of the project's OWN team.
+ * Always derive the team from the project itself, never from a teamId
+ * the browser sent.
+ */
+async function requireProjectMaster(projectId: string) {
+  const supabase = await createClient();
+  const { data: project } = await supabase
+    .from("long_video_projects")
+    .select("id, team_id, stage, title")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project) return { ok: false as const, error: "Project not found." };
+
+  const membership = await getMembership(supabase, project.team_id);
+  if (!isMaster(membership?.roles ?? [])) {
+    return { ok: false as const, error: "Only the master can do this." };
+  }
+  return { ok: true as const, supabase, project };
+}
 
 /**
  * Deletes a project permanently — master-only, checked here before doing
@@ -18,11 +41,12 @@ import { buildMentionCatalog, resolveMentionRecipients } from "@/lib/mentions";
  * which live in storage and aren't covered by the database's own cascade
  * deletes on the comment/title/assignee rows.
  */
-export async function deleteProject(projectId: string, teamId: string) {
-  const supabase = await createClient();
-  const membership = await getMembership(supabase, teamId);
-  if (!isMaster(membership?.roles ?? [])) {
-    return { error: "Only the master can delete a project." };
+export async function deleteProject(projectId: string, _teamId?: string) {
+  // The team is taken from the project itself — previously a master of
+  // team A could pass their own teamId and delete team B's project.
+  const check = await requireProjectMaster(projectId);
+  if (!check.ok) {
+    return { error: check.error === "Only the master can do this." ? "Only the master can delete a project." : check.error };
   }
 
   const admin = createAdminClient();
@@ -160,15 +184,9 @@ export async function updateIdeateField(
  * enforcement.
  */
 export async function regressStage(projectId: string) {
-  const supabase = await createClient();
-
-  const { data: project } = await supabase
-    .from("long_video_projects")
-    .select("id, team_id, stage, title")
-    .eq("id", projectId)
-    .single();
-
-  if (!project) return { error: "Project not found." };
+  const check = await requireProjectMaster(projectId);
+  if (!check.ok) return { error: check.error };
+  const { supabase, project } = check;
 
   const currentIndex = STAGE_ORDER.indexOf(project.stage as PipelineStage);
   const prev = STAGE_ORDER[currentIndex - 1];
@@ -197,7 +215,7 @@ export async function regressStage(projectId: string) {
     .filter(Boolean);
 
   if (recipients.length > 0) {
-    await supabase.from("notifications").insert(
+    await sendNotifications(
       recipients.map((recipient_id) => ({
         recipient_id,
         project_id: projectId,
@@ -219,15 +237,9 @@ export async function regressStage(projectId: string) {
  * calling this directly.
  */
 export async function advanceStage(projectId: string) {
-  const supabase = await createClient();
-
-  const { data: project } = await supabase
-    .from("long_video_projects")
-    .select("id, team_id, stage, title")
-    .eq("id", projectId)
-    .single();
-
-  if (!project) return { error: "Project not found." };
+  const check = await requireProjectMaster(projectId);
+  if (!check.ok) return { error: check.error };
+  const { supabase, project } = check;
 
   const currentIndex = STAGE_ORDER.indexOf(project.stage as PipelineStage);
   const next = STAGE_ORDER[currentIndex + 1];
@@ -257,7 +269,7 @@ export async function advanceStage(projectId: string) {
     .filter(Boolean);
 
   if (recipients.length > 0) {
-    await supabase.from("notifications").insert(
+    await sendNotifications(
       recipients.map((recipient_id) => ({
         recipient_id,
         project_id: projectId,
@@ -283,30 +295,38 @@ export async function assignMember(
   stage: PipelineStage,
   teamMemberId: string
 ) {
-  const supabase = await createClient();
+  if (!PIPELINE_STAGES.includes(stage)) return { error: "Unknown stage." };
+
+  const check = await requireProjectMaster(projectId);
+  if (!check.ok) return { error: check.error };
+  const { supabase, project } = check;
+
+  const { data: member } = await supabase
+    .from("team_members")
+    .select("user_id, member_roles(role)")
+    .eq("id", teamMemberId)
+    .eq("team_id", project.team_id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!member) return { error: "They're not an active member of this team." };
+
+  const roles = ((member.member_roles ?? []) as { role: RoleId }[]).map((r) => r.role);
+  if (!roles.some((r) => roleAllowsStage(r, stage))) {
+    return { error: "They need a role that covers this stage first." };
+  }
 
   const { error } = await supabase
     .from("project_assignees")
     .insert({ project_id: projectId, stage, team_member_id: teamMemberId });
 
   if (error) {
-    return { error: "Couldn't assign — check they hold a role for this stage." };
+    if (error.code === "23505") return { error: "They're already assigned here." };
+    return { error: "Couldn't assign — try again." };
   }
 
-  const { data: project } = await supabase
-    .from("long_video_projects")
-    .select("title")
-    .eq("id", projectId)
-    .single();
-
-  const { data: member } = await supabase
-    .from("team_members")
-    .select("user_id")
-    .eq("id", teamMemberId)
-    .single();
-
-  if (member && project) {
-    await supabase.from("notifications").insert({
+  if (member.user_id) {
+    await sendNotifications({
       recipient_id: member.user_id,
       project_id: projectId,
       stage,
@@ -325,33 +345,54 @@ export async function assignMember(
 }
 
 export async function removeAssignee(projectId: string, assigneeRowId: string) {
-  const supabase = await createClient();
-  await supabase.from("project_assignees").delete().eq("id", assigneeRowId);
+  const check = await requireProjectMaster(projectId);
+  if (!check.ok) return { error: check.error };
+
+  const { error } = await check.supabase
+    .from("project_assignees")
+    .delete()
+    .eq("id", assigneeRowId)
+    .eq("project_id", projectId);
+  if (error) return { error: "Couldn't unassign — try again." };
+
   revalidatePath(`/videos/${projectId}`);
+  return { success: true };
+}
+
+/**
+ * An attachment path must be a file in THIS project's storage folder,
+ * or a Giphy GIF URL. Anything else is dropped (the database enforces
+ * the same rule since 0022).
+ */
+function isAllowedAttachmentPath(path: unknown, projectId: string): path is string {
+  if (typeof path !== "string" || path.length > 1024) return false;
+  if (path.startsWith(`${projectId}/`) && !path.includes("..")) return true;
+  return /^https:\/\/([a-z0-9-]+\.)?giphy\.com\//.test(path);
 }
 
 export async function postComment(
   projectId: string,
   stage: PipelineStage,
   formData: FormData
-) {
-  const body = String(formData.get("body") ?? "").trim();
+): Promise<{ error?: string }> {
+  if (!PIPELINE_STAGES.includes(stage)) return { error: "Unknown stage." };
+  const body = String(formData.get("body") ?? "").trim().slice(0, 10000);
   const attachmentsRawForCheck = String(formData.get("attachments") ?? "[]");
   const hasAttachments = attachmentsRawForCheck !== "[]" && attachmentsRawForCheck !== "";
-  if (!body && !hasAttachments) return;
+  if (!body && !hasAttachments) return {};
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Your session expired — sign in again." };
 
   const { data: project } = await supabase
     .from("long_video_projects")
     .select("team_id, title")
     .eq("id", projectId)
     .single();
-  if (!project) return;
+  if (!project) return { error: "Project not found." };
 
   const { data: newComment, error } = await supabase
     .from("project_comments")
@@ -363,7 +404,9 @@ export async function postComment(
     })
     .select("id")
     .single();
-  if (error || !newComment) return;
+  if (error || !newComment) {
+    return { error: "Couldn't post — you may not have access to this stage." };
+  }
 
   const attachmentsRaw = String(formData.get("attachments") ?? "[]");
   try {
@@ -373,14 +416,17 @@ export async function postComment(
       size: number;
       type: string;
     }[];
-    if (attachments.length > 0) {
+    const safe = Array.isArray(attachments)
+      ? attachments.filter((a) => a && isAllowedAttachmentPath(a.path, projectId)).slice(0, 20)
+      : [];
+    if (safe.length > 0) {
       await supabase.from("comment_attachments").insert(
-        attachments.map((a) => ({
+        safe.map((a) => ({
           comment_id: newComment.id,
-          file_name: a.name,
+          file_name: String(a.name ?? "file").slice(0, 255),
           file_path: a.path,
-          file_size: a.size,
-          mime_type: a.type,
+          file_size: Number(a.size) || 0,
+          mime_type: String(a.type ?? "application/octet-stream").slice(0, 255),
         }))
       );
     }
@@ -421,7 +467,7 @@ export async function postComment(
   if (recipientIds.size > 0) {
     const authorName = displayName(authorProfile?.username, authorProfile?.full_name, authorProfile?.email);
     const snippet = body.length > 80 ? `${body.slice(0, 80)}…` : body;
-    await supabase.from("notifications").insert(
+    await sendNotifications(
       Array.from(recipientIds).map((recipient_id) => ({
         recipient_id,
         project_id: projectId,
@@ -440,6 +486,7 @@ export async function postComment(
   }
 
   revalidatePath(`/videos/${projectId}`);
+  return {};
 }
 
 export async function deleteComment(commentId: string, projectId: string) {

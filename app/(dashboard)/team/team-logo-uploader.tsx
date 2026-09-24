@@ -1,5 +1,6 @@
 "use client";
 
+import { compressImage, IMAGE_PRESETS, safeFileName, UPLOAD_CACHE_CONTROL } from "@/lib/image/compress";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -23,16 +24,23 @@ export function TeamLogoUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleFile(file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
+  async function handleFile(original: File | undefined) {
+    if (!original) return;
+    if (!original.type.startsWith("image/")) {
       toast.error("Only image files are allowed.");
+      return;
+    }
+    if (original.size > 25 * 1024 * 1024) {
+      toast.error("Keep it under 25MB.");
       return;
     }
     setBusy(true);
 
-    const path = `${teamId}/logo-${Date.now()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage.from("team-logos").upload(path, file);
+    const file = await compressImage(original, IMAGE_PRESETS.logo);
+    const path = `${teamId}/logo-${Date.now()}-${safeFileName(file.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from("team-logos")
+      .upload(path, file, { cacheControl: UPLOAD_CACHE_CONTROL, contentType: file.type });
     if (uploadError) {
       toast.error("Upload failed — you may not have permission.");
       setBusy(false);
@@ -57,7 +65,7 @@ export function TeamLogoUploader({
       >
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={logoUrl} alt="" className="w-full h-full object-cover" />
         ) : (
           initials
         )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { compressImage, IMAGE_PRESETS, safeFileName, UPLOAD_CACHE_CONTROL } from "@/lib/image/compress";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -29,22 +30,23 @@ export function ThumbnailUploader({
     setBusy(true);
     let failed = 0;
 
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) {
+    for (const original of Array.from(files)) {
+      if (!original.type.startsWith("image/")) {
         toast.error("Only image files are allowed.");
         failed++;
         continue;
       }
-      if (file.size > 8 * 1024 * 1024) {
-        toast.error("Keep each image under 8MB.");
+      if (original.size > 25 * 1024 * 1024) {
+        toast.error("Keep each image under 25MB.");
         failed++;
         continue;
       }
 
-      const path = `${projectId}/${crypto.randomUUID()}-${file.name}`;
+      const file = await compressImage(original, IMAGE_PRESETS.thumbnail);
+      const path = `${projectId}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("thumbnails")
-        .upload(path, file);
+        .upload(path, file, { cacheControl: UPLOAD_CACHE_CONTROL, contentType: file.type });
 
       if (uploadError) {
         toast.error("Upload failed — you may not have permission to add thumbnails here.");
@@ -89,7 +91,7 @@ export function ThumbnailUploader({
             className="relative aspect-video rounded-lg overflow-hidden border border-line/10 bg-surface-2 group"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={t.url} alt="" className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={t.url} alt="" className="w-full h-full object-cover" />
             {canEdit && (
               <button
                 onClick={() => handleRemove(t.id, t.path)}

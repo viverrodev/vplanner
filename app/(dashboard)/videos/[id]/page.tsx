@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getTeamsAndCurrent } from "@/lib/teams";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
 import { isMaster, roleAllowsStage, ROLES } from "@/lib/permissions/roles";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
@@ -22,6 +21,8 @@ import { NotesPanel } from "./notes-panel";
 import { DeleteProjectButton } from "./delete-project-button";
 import { postComment } from "./actions";
 import type { Metadata } from "next";
+import { getProject } from "@/modules/long-videos/lib/queries";
+import { LinkPendingIndicator } from "@/components/ui/link-pending";
 
 const TABS: PipelineStage[] = [
   "ideate",
@@ -39,13 +40,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("long_video_projects")
-    .select("title")
-    .eq("id", id)
-    .single();
-  return { title: data?.title ?? "Project" };
+  const project = await getProject(id);
+  return { title: project?.title ?? "Project" };
 }
 
 export default async function ProjectDetailPage({
@@ -62,57 +58,62 @@ export default async function ProjectDetailPage({
     : "ideate";
 
   const supabase = await createClient();
-  const { currentTeam } = await getTeamsAndCurrent(supabase);
-  if (!currentTeam) notFound();
 
-  const { data: project } = await supabase
-    .from("long_video_projects")
-    .select("*")
-    .eq("id", id)
-    .single();
-
+  // The project decides which team we're looking at — NOT the workspace
+  // switcher. (Opening a notification for a project in another team
+  // used to evaluate your roles against the wrong team.)
+  const [project, currentUser] = await Promise.all([getProject(id), getCachedUser()]);
   if (!project) notFound();
+  const teamId: string = project.team_id;
 
-  const membership = await getMembership(supabase, currentTeam.id);
-  const currentUser = await getCachedUser();
-  const userIsMaster = isMaster(membership?.roles ?? []);
-
+  // Everything below depends only on the project id / team id, so it all
+  // runs in parallel — one round of waiting instead of a chain.
   const [
-    [{ data: titles }, { data: teamMembers }, { data: assigneeRows }, { data: comments }, { data: thumbnailRows }, { data: attachmentRows }],
+    membership,
     roleColors,
+    { data: titles },
+    { data: teamMembers },
+    { data: assigneeRows },
+    { data: comments },
+    { data: thumbnailRows },
+    { data: attachmentRows },
   ] = await Promise.all([
-    Promise.all([
-      supabase
-        .from("project_titles")
-        .select("id, title, is_picked, position")
-        .eq("project_id", id)
-        .order("position"),
-      supabase
-        .from("team_members")
-        .select("id, user_id, profiles(username, full_name, email, avatar_url), member_roles(role)")
-        .eq("team_id", currentTeam.id)
-        .eq("status", "active"),
-      supabase
-        .from("project_assignees")
-        .select("id, stage, team_member_id, team_members(profiles(full_name))")
-        .eq("project_id", id),
-      supabase
-        .from("project_comments")
-        .select("id, stage, body, created_at, author_id")
-        .eq("project_id", id)
-        .order("created_at"),
-      supabase
-        .from("project_thumbnails")
-        .select("id, storage_path, position")
-        .eq("project_id", id)
-        .order("position"),
-      supabase
-        .from("comment_attachments")
-        .select("id, comment_id, file_name, file_path, file_size, mime_type, project_comments!inner(project_id)")
-        .eq("project_comments.project_id", id),
-    ]),
-    getRoleColors(supabase, currentTeam.id),
+    getMembership(supabase, teamId),
+    getRoleColors(supabase, teamId),
+    supabase
+      .from("project_titles")
+      .select("id, title, is_picked, position")
+      .eq("project_id", id)
+      .order("position"),
+    supabase
+      .from("team_members")
+      .select("id, user_id, profiles(username, full_name, email, avatar_url), member_roles(role)")
+      .eq("team_id", teamId)
+      .eq("status", "active"),
+    supabase
+      .from("project_assignees")
+      .select("id, stage, team_member_id")
+      .eq("project_id", id),
+    // Only the open tab's notes (+ their attachments) — not every stage's.
+    supabase
+      .from("project_comments")
+      .select("id, stage, body, created_at, author_id")
+      .eq("project_id", id)
+      .eq("stage", tab)
+      .order("created_at"),
+    supabase
+      .from("project_thumbnails")
+      .select("id, storage_path, position")
+      .eq("project_id", id)
+      .order("position"),
+    supabase
+      .from("comment_attachments")
+      .select("id, comment_id, file_name, file_path, file_size, mime_type, project_comments!inner(project_id, stage)")
+      .eq("project_comments.project_id", id)
+      .eq("project_comments.stage", tab),
   ]);
+
+  const userIsMaster = isMaster(membership?.roles ?? []);
 
   const memberColors = ["#E8630D", "#178C7C", "#3159C9", "#6B4FD6", "#B84070", "#B4890E", "#2B9757"];
   const membersById = new Map(
@@ -188,6 +189,7 @@ export default async function ProjectDetailPage({
     .map(([teamMemberId, info]) => ({
       teamMemberId,
       name: info.name,
+      color: info.color,
       roles: info.roles
         .map((r) => ROLES.find((role) => role.id === r)?.name)
         .join(", "),
@@ -243,7 +245,7 @@ export default async function ProjectDetailPage({
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <TypeThemeEditor
           projectId={id}
-          teamId={currentTeam.id}
+          teamId={teamId}
           videoType={project.video_type ?? []}
           theme={project.theme ?? ""}
           subtheme={project.subtheme}
@@ -252,12 +254,12 @@ export default async function ProjectDetailPage({
         />
         <ExpectedDateEditor
           projectId={id}
-          teamId={currentTeam.id}
+          teamId={teamId}
           date={project.expected_date}
           canEdit={canActOnStage(membership, "ideate")}
         />
         {userIsMaster && (
-          <DeleteProjectButton projectId={id} teamId={currentTeam.id} projectTitle={project.title} />
+          <DeleteProjectButton projectId={id} teamId={teamId} projectTitle={project.title} />
         )}
       </div>
 
@@ -307,13 +309,15 @@ export default async function ProjectDetailPage({
           <Link
             key={t}
             href={`/videos/${id}?tab=${t}`}
-            className={`px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
+            scroll={false}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
               tab === t
                 ? "border-amber text-amber"
                 : "border-transparent text-ink-faint hover:text-ink"
             }`}
           >
             {STAGE_LABELS[t]}
+            <LinkPendingIndicator />
           </Link>
         ))}
       </div>
@@ -329,7 +333,7 @@ export default async function ProjectDetailPage({
                 </div>
                 <TitleList
                   projectId={id}
-                  teamId={currentTeam.id}
+                  teamId={teamId}
                   titles={titles ?? []}
                   canPick={userIsMaster}
                   canEditText={canActOnStage(membership, "ideate")}
@@ -341,7 +345,7 @@ export default async function ProjectDetailPage({
                 </div>
                 <InlineEditable
                   projectId={id}
-                  teamId={currentTeam.id}
+                  teamId={teamId}
                   field="hook"
                   value={project.hook}
                   canEdit={canActOnStage(membership, "ideate")}
@@ -357,7 +361,7 @@ export default async function ProjectDetailPage({
                 </div>
                 <InlineEditable
                   projectId={id}
-                  teamId={currentTeam.id}
+                  teamId={teamId}
                   field="notes"
                   value={project.notes}
                   canEdit={canActOnStage(membership, "ideate")}
@@ -370,7 +374,7 @@ export default async function ProjectDetailPage({
                 </div>
                 <InlineEditable
                   projectId={id}
-                  teamId={currentTeam.id}
+                  teamId={teamId}
                   field="budget_notes"
                   value={project.budget_notes}
                   canEdit={canActOnStage(membership, "ideate")}
@@ -428,6 +432,20 @@ export default async function ProjectDetailPage({
           postAction={postComment.bind(null, id, tab)}
           mentionCatalog={mentionCatalog}
           roleColors={roleColors}
+          me={(() => {
+            const self = currentUser ? peopleByUserId.get(currentUser.id) : undefined;
+            if (!currentUser || !self) return null;
+            return {
+              id: currentUser.id,
+              name: self.name,
+              avatarColor: self.color,
+              avatarUrl: self.avatarUrl,
+              roles: self.roles.map((r) => ({
+                name: ROLES.find((role) => role.id === r)?.name ?? r,
+                color: roleColors[r],
+              })),
+            };
+          })()}
         />
       </div>
     </div>

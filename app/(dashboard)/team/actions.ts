@@ -8,8 +8,9 @@ import { getMembership } from "@/lib/permissions/membership";
 import { isMaster, ROLES } from "@/lib/permissions/roles";
 import type { RoleId } from "@/lib/permissions/roles";
 import { displayName } from "@/lib/avatar";
-import { actorMeta, teamMeta } from "@/lib/notify";
+import { actorMeta, teamMeta, sendNotifications } from "@/lib/notify";
 import { getRoleColors } from "@/lib/permissions/team-role-colors";
+import { isOwnStorageUrl } from "@/lib/storage-url";
 
 async function requireMaster(teamId: string) {
   const supabase = await createClient();
@@ -19,6 +20,9 @@ async function requireMaster(teamId: string) {
   }
   return { ok: true as const };
 }
+
+const VALID_ROLE_IDS = new Set<string>(ROLES.map((r) => r.id));
+
 
 /**
  * Invites an EXISTING VPlanner account to join this team. This does not
@@ -49,7 +53,9 @@ export async function inviteExistingUser(
   // stale (past the 1-hour window) — this is what makes re-inviting
   // possible after a failure, without weakening the rule that a
   // genuinely still-live pending invite blocks a duplicate.
-  await supabase
+  // (Admin client: the master has no UPDATE access to invites since
+  // 0022 — and before that, this update silently matched nothing.)
+  await createAdminClient()
     .from("team_invites")
     .update({ status: "expired" })
     .eq("team_id", teamId)
@@ -84,7 +90,7 @@ export async function inviteExistingUser(
   const actor = await actorMeta(supabase, user.id);
   const teamInfo = await teamMeta(supabase, teamId);
 
-  const { error: notifyError } = await supabase.from("notifications").insert({
+  const { error: notifyError } = await sendNotifications({
     recipient_id: userId,
     team_invite_id: invite.id,
     kind: "team_invite",
@@ -194,65 +200,78 @@ export async function setMemberRoles(
   if (!check.ok) return { error: check.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
 
-  // The team's owner is always its master — a permanent invariant, not
-  // just a "need at least one" rule. This is what actually stops the
-  // exact bug that happened: the owner accidentally unchecking their
-  // own Master box.
-  const { data: team } = await supabase.from("teams").select("owner_id, name").eq("id", teamId).single();
-  const { data: targetMember } = await supabase
-    .from("team_members")
-    .select("user_id")
-    .eq("id", teamMemberId)
-    .single();
+  const nextRoles = Array.from(new Set(roleIds)).filter((r) => VALID_ROLE_IDS.has(r)) as RoleId[];
 
-  if (team && targetMember && targetMember.user_id === team.owner_id && !roleIds.includes("master")) {
+  const [{ data: team }, { data: targetMember }] = await Promise.all([
+    supabase.from("teams").select("owner_id, name").eq("id", teamId).single(),
+    supabase
+      .from("team_members")
+      .select("user_id, member_roles(role)")
+      .eq("id", teamMemberId)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+  ]);
+
+  if (!team || !targetMember) return { error: "That member isn't on this team." };
+
+  const currentRoles = ((targetMember.member_roles ?? []) as { role: RoleId }[]).map((r) => r.role);
+  const toAdd = nextRoles.filter((r) => !currentRoles.includes(r));
+  const toRemove = currentRoles.filter((r) => !nextRoles.includes(r));
+
+  // The team's owner is always its master — a permanent invariant.
+  if (targetMember.user_id === team.owner_id && toRemove.includes("master")) {
     return { error: "The team owner is always Master — that can't be changed." };
   }
 
-  // Safeguard: never let the team end up with zero masters.
-  const wasMaster = await supabase
-    .from("member_roles")
-    .select("role")
-    .eq("team_member_id", teamMemberId)
-    .eq("role", "master")
-    .maybeSingle();
-
-  if (wasMaster.data && !roleIds.includes("master")) {
-    const { count } = await supabase
-      .from("member_roles")
-      .select("team_member_id, team_members!inner(team_id)", { count: "exact", head: true })
-      .eq("role", "master")
-      .eq("team_members.team_id", teamId);
-    if ((count ?? 0) <= 1) {
-      return { error: "Every team needs at least one master — assign it to someone else first." };
-    }
+  // Master is the boss role: only the owner hands it out or takes it away.
+  const touchesMaster = toAdd.includes("master") || toRemove.includes("master");
+  if (touchesMaster && user.id !== team.owner_id) {
+    return { error: "Only the team owner can grant or remove Master." };
   }
 
-  await supabase.from("member_roles").delete().eq("team_member_id", teamMemberId);
-  if (roleIds.length > 0) {
-    await supabase
-      .from("member_roles")
-      .insert(roleIds.map((role) => ({ team_member_id: teamMemberId, role })));
+  if (toAdd.length === 0 && toRemove.length === 0) {
+    return { success: true };
   }
 
-  if (targetMember?.user_id) {
+  // Only delete/insert what actually changed — no "wipe and re-add",
+  // so an unchanged Master role is never touched.
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from("member_roles")
+      .delete()
+      .eq("team_member_id", teamMemberId)
+      .in("role", toRemove);
+    if (error) return { error: "Couldn't update roles — try again." };
+  }
+  if (toAdd.length > 0) {
+    const { error } = await supabase
+      .from("member_roles")
+      .insert(toAdd.map((role) => ({ team_member_id: teamMemberId, role })));
+    if (error) return { error: "Couldn't update roles — try again." };
+  }
+
+  if (targetMember.user_id) {
     const teamRoleColors = await getRoleColors(supabase, teamId);
-    const roleObjs = roleIds
+    const roleObjs = nextRoles
       .map((r) => {
         const name = ROLES.find((role) => role.id === r)?.name;
         return name ? { name, color: teamRoleColors[r] ?? "#999" } : null;
       })
       .filter(Boolean);
     const teamInfo = await teamMeta(supabase, teamId);
-    await supabase.from("notifications").insert({
+    await sendNotifications({
       recipient_id: targetMember.user_id,
       kind: "role_changed",
       metadata: { team: teamInfo, roles: roleObjs },
       body:
         roleObjs.length > 0
-          ? `Your role on ${team?.name ?? "the team"} changed to ${roleObjs.map((r) => r!.name).join(", ")}.`
-          : `Your roles on ${team?.name ?? "the team"} were cleared.`,
+          ? `Your role on ${team.name ?? "the team"} changed to ${roleObjs.map((r) => r!.name).join(", ")}.`
+          : `Your roles on ${team.name ?? "the team"} were cleared.`,
     });
   }
 
@@ -265,27 +284,46 @@ export async function kickMember(teamId: string, teamMemberId: string) {
   if (!check.ok) return { error: check.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
 
-  const { data: team } = await supabase.from("teams").select("owner_id, name").eq("id", teamId).single();
-  const { data: member } = await supabase
-    .from("team_members")
-    .select("user_id")
-    .eq("id", teamMemberId)
-    .single();
+  const [{ data: team }, { data: member }] = await Promise.all([
+    supabase.from("teams").select("owner_id, name").eq("id", teamId).single(),
+    supabase
+      .from("team_members")
+      .select("user_id, member_roles(role)")
+      .eq("id", teamMemberId)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+  ]);
 
-  if (team && member && member.user_id === team.owner_id) {
+  if (!team || !member) return { error: "That member isn't on this team." };
+
+  if (member.user_id === team.owner_id) {
     return { error: "The team's owner can't be removed." };
   }
 
-  await supabase.from("team_members").delete().eq("id", teamMemberId);
+  const memberIsMaster = ((member.member_roles ?? []) as { role: RoleId }[]).some((r) => r.role === "master");
+  if (memberIsMaster && user.id !== team.owner_id) {
+    return { error: "Only the team owner can remove another Master." };
+  }
 
-  if (member?.user_id) {
+  const { error } = await supabase
+    .from("team_members")
+    .delete()
+    .eq("id", teamMemberId)
+    .eq("team_id", teamId);
+  if (error) return { error: "Couldn't remove them — try again." };
+
+  if (member.user_id) {
     const teamInfo = await teamMeta(supabase, teamId);
-    await supabase.from("notifications").insert({
+    await sendNotifications({
       recipient_id: member.user_id,
       kind: "kicked",
       metadata: { team: teamInfo },
-      body: `You were removed from ${team?.name ?? "a team"}.`,
+      body: `You were removed from ${team.name ?? "a team"}.`,
     });
   }
 
@@ -296,12 +334,15 @@ export async function kickMember(teamId: string, teamMemberId: string) {
 export async function updateTeamName(teamId: string, name: string) {
   const check = await requireMaster(teamId);
   if (!check.ok) return { error: check.error };
-  if (!name.trim()) return { error: "Team name can't be empty." };
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Team name can't be empty." };
+  if (trimmed.length > 60) return { error: "Keep the name under 60 characters." };
 
   const supabase = await createClient();
-  await supabase.from("teams").update({ name: name.trim() }).eq("id", teamId);
-  revalidatePath("/team");
-  revalidatePath("/dashboard");
+  const { error } = await supabase.from("teams").update({ name: trimmed }).eq("id", teamId);
+  if (error) return { error: "Couldn't rename the team — try again." };
+
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -309,16 +350,24 @@ export async function updateTeamLogo(teamId: string, logoUrl: string | null) {
   const check = await requireMaster(teamId);
   if (!check.ok) return { error: check.error };
 
+  // Only accept logos that live in this team's own storage folder.
+  if (logoUrl !== null) {
+    if (!isOwnStorageUrl(logoUrl, "team-logos", teamId)) return { error: "Invalid logo." };
+  }
+
   const supabase = await createClient();
-  await supabase.from("teams").update({ logo_url: logoUrl }).eq("id", teamId);
-  revalidatePath("/team");
-  revalidatePath("/dashboard");
+  const { error } = await supabase.from("teams").update({ logo_url: logoUrl }).eq("id", teamId);
+  if (error) return { error: "Couldn't save the logo — try again." };
+
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
 export async function setRoleColor(teamId: string, role: RoleId, color: string) {
   const check = await requireMaster(teamId);
   if (!check.ok) return { error: check.error };
+  if (!VALID_ROLE_IDS.has(role)) return { error: "Unknown role." };
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return { error: "Invalid color." };
 
   const supabase = await createClient();
   await supabase
@@ -368,7 +417,8 @@ export async function requestOwnershipTransfer(teamId: string, toUserId: string)
 
   // Clear any stale (expired) request for this team so a fresh one can
   // go out — same pattern as team invites.
-  await supabase
+  const admin = createAdminClient();
+  await admin
     .from("ownership_transfer_requests")
     .update({ status: "expired" })
     .eq("team_id", teamId)
@@ -391,7 +441,7 @@ export async function requestOwnershipTransfer(teamId: string, toUserId: string)
   const actor = await actorMeta(supabase, user.id);
   const teamInfo = await teamMeta(supabase, teamId);
 
-  const { error: notifyError } = await supabase.from("notifications").insert({
+  const { error: notifyError } = await sendNotifications({
     recipient_id: toUserId,
     ownership_transfer_id: request.id,
     kind: "ownership_request",
@@ -400,10 +450,40 @@ export async function requestOwnershipTransfer(teamId: string, toUserId: string)
   });
 
   if (notifyError) {
-    await supabase.from("ownership_transfer_requests").delete().eq("id", request.id);
+    await admin.from("ownership_transfer_requests").delete().eq("id", request.id);
     return { error: "Couldn't notify them — try again." };
   }
 
   revalidatePath("/team");
+  return { success: true };
+}
+
+/**
+ * Cancels the team's pending ownership request. Owner-only. Deleting
+ * the row also removes the recipient's notification (FK cascade), same
+ * as canceling a team invite.
+ */
+export async function cancelOwnershipTransfer(teamId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Session expired." };
+
+  const { data: team } = await supabase.from("teams").select("owner_id").eq("id", teamId).single();
+  if (!team || team.owner_id !== user.id) {
+    return { error: "Only the current owner can cancel a transfer." };
+  }
+
+  const { error } = await createAdminClient()
+    .from("ownership_transfer_requests")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("from_user_id", user.id)
+    .eq("status", "pending");
+
+  if (error) return { error: "Couldn't cancel the request — try again." };
+
+  revalidatePath("/", "layout");
   return { success: true };
 }

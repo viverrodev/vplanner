@@ -94,3 +94,72 @@ proof-that-it-all-works dashboard page. The actual VPlanner interface
 (workspace switcher, project pipeline UI, calendar, editor review tool,
 etc.) gets built next, on top of this — and on top of a proper design
 system pass, since the current styling is placeholder only.
+
+
+## Security model (read before adding features)
+
+- **RLS is the real boundary.** Every table has Row Level Security. The UI
+  hiding a button is convenience, never protection.
+- **Users can only edit columns they genuinely own.** Since migration 0022,
+  column-level grants restrict what a logged-in user can UPDATE (e.g. only
+  `is_read` on notifications, never `owner_id` on teams, never anything on
+  invites or ownership requests).
+- **Admin client golden rule.** `createAdminClient()` bypasses RLS. Use it
+  only in server actions, only after checking the caller is allowed, and
+  only with values the user could NOT have edited themselves.
+  `import "server-only"` makes the build fail if it ever reaches the browser.
+- **Notifications are server-created only** — always via
+  `sendNotifications()` in `lib/notify.ts`.
+- **Never trust a teamId from the browser for a privileged action.** Derive
+  the team from the row being acted on (see `requireProjectMaster`).
+- **Database triggers enforce the invariants:** only a Master changes a
+  project's stage; projects never change team; the owner can't be removed
+  and is always Master; only the owner grants/removes Master.
+
+## Migrations
+
+Files in `supabase/migrations/` are run in order on BOTH Supabase projects
+(staging first, then production). Personal one-off SQL goes in
+`supabase/scratch/` (gitignored) — never in `migrations/`.
+
+## Performance conventions (follow these for every new feature)
+
+**Database**
+- Every new column you filter, join or sort by gets an index in the same
+  migration. Postgres does NOT index foreign keys automatically.
+- Read (SELECT) policies check membership with the set helpers, never a
+  per-row function: `team_id in (select my_team_ids())`,
+  `project_id in (select my_project_ids())`,
+  `recipient_id = (select auth.uid())`. The `(select …)` wrapper is what
+  makes Postgres evaluate it once per query instead of once per row.
+- Never write a single `FOR ALL` policy — split into insert / update /
+  delete so reads don't pay for write checks.
+- Select only the columns a screen needs; filter child rows in the query
+  (e.g. only the open tab's comments), not in JavaScript afterwards.
+
+**Server (pages & actions)**
+- Independent queries go in ONE `Promise.all` — never `await` them one by
+  one. Each sequential await is a full round trip to the database.
+- Anything two places in the same request need (a project, the user, a
+  membership) is wrapped in React `cache()` — see
+  `modules/long-videos/lib/queries.ts` and `lib/supabase/get-user.ts`.
+- `getCachedUser()` reuses the identity middleware already verified — no
+  extra auth round trip. Security-sensitive server ACTIONS still call
+  `supabase.auth.getUser()` themselves.
+- Privileged data derives its team from the row itself (a project's
+  `team_id`), not from the workspace switcher or the browser.
+
+**Client**
+- Call server actions through `useAction()` (`lib/hooks/use-action.ts`):
+  consistent toasts, and an `optimistic` hook paired with React's
+  `useOptimistic` so the UI responds instantly. Reference implementation:
+  `videos/[id]/assignee-row.tsx`; notes use the same idea in
+  `notes-panel.tsx`.
+- Realtime handlers patch the exact rows that changed (see
+  `notification-bell.tsx`) or debounce `router.refresh()` — never refresh
+  the whole page per event, and skip events caused by your own action.
+- Every route has a `loading.tsx` built from `components/ui/skeleton.tsx`.
+  Same-page navigations (tabs) get `<LinkPendingIndicator />`.
+- Images: upload through `compressImage()` with an `IMAGE_PRESETS` entry
+  and `UPLOAD_CACHE_CONTROL`; render with `loading="lazy"
+  decoding="async"`.
