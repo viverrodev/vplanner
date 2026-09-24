@@ -394,3 +394,20 @@ export function CompassIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function PlusIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  );
+}
+
+export function UserIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="8.5" r="3.75" />
+      <path d="M4.75 20c.8-3.6 3.6-5.5 7.25-5.5s6.45 1.9 7.25 5.5" />
+    </Svg>
+  );
+}

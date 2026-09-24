@@ -299,7 +299,7 @@ export function NotesPanel({
       />
     ) : (
       <p className="text-[11px] text-ink-faint">
-        Only people tagged on this stage (or the master) can post notes here.
+        Only people with a role for this stage (or the master) can post notes here.
       </p>
     );
   }

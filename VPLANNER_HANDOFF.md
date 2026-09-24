@@ -35,6 +35,8 @@ Internal content-production dashboard for a YouTube team. Stack: **Next.js 15 (A
 
 - 0023: **performance** — indexes on every filtered/joined/sorted column (FKs weren't indexed); SELECT policies rewritten to set-based helpers (`my_team_ids()`, `my_project_ids()`, `my_master_team_ids()`, `my_teammate_member_ids()`, all SECURITY DEFINER) evaluated once per query instead of per row; `FOR ALL` master policies split into insert/update/delete. Permissions unchanged (verified with the local test suite).
 
+- 0024: **global search** — `pg_trgm` (in the `extensions` schema) + trigram GIN indexes on profile usernames/names, project titles, alternate titles and team names; `global_search(q, max_results)` RPC is SECURITY INVOKER (RLS decides what's findable), returns `{people, projects, teams, master_teams}` in one call. People carry `member_of`/`invited_to` (only for teams the searcher masters) for the Invite flow. Email only matches when the query contains "@" and is never returned.
+
 ## Key architectural patterns (apply these consistently going forward)
 - **The admin-client pattern**: `createAdminClient()` (service role, bypasses RLS, `server-only`) is used only in server actions, only after verifying the caller, and **only with values the user could not have edited** — e.g. invite/transfer rows (users have no UPDATE on those since 0022), the verified user id, constants. Accept flows claim the row atomically (`update ... where status = 'pending'`). The original 0013 "RLS bug" was most likely the insert-then-`.select()` gotcha (the returned row must pass the SELECT policy, and `is_team_member()` can't see a row inserted in the same statement), not a session problem.
 - **Privileged project actions derive the team from the project row** (`requireProjectMaster` in `videos/[id]/actions.ts`), never from a teamId sent by the browser.
@@ -56,8 +58,8 @@ Internal content-production dashboard for a YouTube team. Stack: **Next.js 15 (A
 ## Current roadmap
 - ✅ Part 1: performance foundation (0023 + app-wide patterns)
 - ✅ Part 2: UI/mobile polish — 404 (in-shell via `(dashboard)/[...missing]` catch-all + root fallback), `team_disbanded` notification, profiles linkable for everyone (`/u/<username>` or `/u/<user-id>`, `profileHref()`), `RolePills` (max 2 + "+N"), state-based stage colors (`stageState()` / `STAGE_STATE_COLOR`: orange current, teal done, neutral upcoming), neutral filter chips with counts, SVG icon set (never Unicode symbols for UI chrome — iOS renders them as emoji), notifications panel rendered in a portal (the header's backdrop-blur was trapping `position: fixed`), bottom nav with safe-area padding
-- ⏭ Part 3: global search (pg_trgm, one security-definer RPC, Ctrl/⌘+K, keyboard nav, invite-to-team from results, mobile sheet, recents, quick actions)
-- Then: social account connections (own focused phase)
+- ✅ Part 3: global search — `components/search/*`: header trigger (desktop bar / mobile icon), Ctrl/⌘+K and "/" shortcuts, ↑↓/Enter/Esc, Tab or → on a person opens the Invite panel (team picker with member/pending states, roles via 1–6, Enter sends via `inviteExistingUser`), full-screen sheet on phones, recents (localStorage per user), quick actions + switch team, match highlighting, thumbnails/team badges/stage pills; browser calls the RPC directly (debounced, cached, out-of-order safe)
+- ⏭ Next: social account connections (own focused phase — YouTube first)
 
 ## Open phases / discussed but not yet built
 - **Research stage build-out** (and the rest of the pipeline past Ideate) — the actual production workflow (Research → Script → Film → Edit → Package → Publish) is still just placeholder assignee/notes tabs, not fully designed like Ideate.
@@ -67,6 +69,6 @@ Internal content-production dashboard for a YouTube team. Stack: **Next.js 15 (A
 - **Dashboard to-do widget** — user wants a quick-glance "things assigned to me" widget on the main dashboard eventually; nothing built yet, just noted for later.
 
 ## What to upload in the new conversation
-Upload the **most recent zip** you have from this conversation (the production service-role-key fix didn't require a new zip — the last real code delivery was `vplanner-part2-polish.zip`). If you've made any manual edits since then (like deleting the old `invite-form.tsx` or similar), make sure those are reflected in what you upload, or just say so.
+Upload the **most recent zip** you have from this conversation (the production service-role-key fix didn't require a new zip — the last real code delivery was `vplanner-part3-search.zip`). If you've made any manual edits since then (like deleting the old `invite-form.tsx` or similar), make sure those are reflected in what you upload, or just say so.
 
 Paste this whole document as your first message, then attach that zip.

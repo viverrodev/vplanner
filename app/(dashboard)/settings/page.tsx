@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/get-user";
 import { getTeamsAndCurrent } from "@/lib/teams";
@@ -72,12 +73,12 @@ export default async function SettingsPage() {
             Your teams
           </h2>
           {profile?.username && (
-            <a
+            <Link
               href={`/u/${profile.username}`}
               className="text-[11.5px] font-semibold text-amber hover:brightness-110"
             >
               View public profile →
-            </a>
+            </Link>
           )}
         </div>
         <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-line/10">

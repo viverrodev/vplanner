@@ -202,7 +202,10 @@ export default async function ProjectDetailPage({
     }));
 
   const commentsForTab = (comments ?? []).filter((c) => c.stage === tab);
-  const canComment = canActOnStage(membership, tab);
+  // Ideate is the team's brainstorm — every member can post there. Other
+  // stages: people with a role for that stage, or a Master (same rule
+  // the database enforces, migration 0025).
+  const canComment = tab === "ideate" ? !!membership : canActOnStage(membership, tab);
 
   return (
     <div className="px-4 sm:px-10 py-5 sm:py-9 w-full max-w-[1400px] mx-auto">

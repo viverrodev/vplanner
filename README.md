@@ -176,3 +176,11 @@ Files in `supabase/migrations/` are run in order on BOTH Supabase projects
 - **People link to profiles** via `profileHref()` / `MemberAvatarLink` /
   `MemberNameLink`; `/u/<username>` or `/u/<user-id>` both work.
 - **Roles next to a name:** `<RolePills roles={…} />` (max 2 + "+N").
+
+## Search
+
+`global_search()` (migration 0024) is the single search backend. It is
+SECURITY INVOKER on purpose: RLS decides what anyone can find, so never
+convert it to SECURITY DEFINER. To make something new searchable, add a
+trigram index on `lower(column)` and a new section to the function, then a
+section in `components/search/global-search.tsx`.

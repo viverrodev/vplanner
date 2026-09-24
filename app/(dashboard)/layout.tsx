@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ToastProvider } from "@/components/ui/toast-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 import { NotificationBell } from "@/components/ui/notification-bell";
+import { GlobalSearch } from "@/components/search/global-search";
 import { displayName, colorForId } from "@/lib/avatar";
 import { signOut } from "./actions";
 import { NOTIFICATION_SELECT } from "@/lib/notification-select";
@@ -66,22 +67,34 @@ export default async function DashboardLayout({
             username={profile?.username ?? null}
           />
           <div className="flex-1 min-w-0 flex flex-col">
-            <header className="h-14 flex items-center gap-2 sm:gap-4 border-b border-line/10 px-4 sm:px-6 sticky top-0 bg-paper/90 backdrop-blur z-20">
-              <span className="font-display font-semibold text-[14px] tracking-tight md:hidden">
+            {/* Three columns on desktop so the search bar sits in the true
+                middle of the top bar: [brand] [search] [actions]. On phones:
+                brand on the left, search icon + actions on the right. */}
+            <header className="h-14 grid grid-cols-[1fr_auto_auto] md:grid-cols-[1fr_minmax(0,30rem)_1fr] items-center gap-2 sm:gap-4 border-b border-line/10 px-4 sm:px-6 sticky top-0 bg-paper/90 backdrop-blur z-20">
+              <span className="font-display font-semibold text-[14px] tracking-tight md:invisible">
                 VPlanner
               </span>
-              <div className="flex-1" />
-              <NotificationBell notifications={notifications ?? []} userId={user!.id} />
-              <ThemeToggle />
-              {/* On phones, Log out lives in Settings — keeps the header uncluttered. */}
-              <form action={signOut} className="hidden md:block">
-                <button
-                  type="submit"
-                  className="rounded-lg border border-line/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:border-line/30 transition-colors"
-                >
-                  Log out
-                </button>
-              </form>
+              <div className="min-w-0 flex items-center justify-end md:justify-center">
+                <GlobalSearch
+                  userId={user!.id}
+                  username={profile?.username ?? null}
+                  teams={teams}
+                  currentTeamId={currentTeam?.id ?? null}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 sm:gap-4">
+                <NotificationBell notifications={notifications ?? []} userId={user!.id} />
+                <ThemeToggle />
+                {/* On phones, Log out lives in Settings — keeps the header uncluttered. */}
+                <form action={signOut} className="hidden md:block">
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-line/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:border-line/30 transition-colors"
+                  >
+                    Log out
+                  </button>
+                </form>
+              </div>
             </header>
             <MobileTopBar
               teams={teams}
