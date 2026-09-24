@@ -1,8 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getProfileByHandle } from "@/lib/profiles";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/get-user";
 import { colorForId, initialsFor } from "@/lib/avatar";
+import Link from "next/link";
 
 export async function generateMetadata({
   params,
@@ -10,14 +12,9 @@ export async function generateMetadata({
   params: Promise<{ username: string }>;
 }): Promise<Metadata> {
   const { username } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("full_name, username")
-    .ilike("username", username)
-    .maybeSingle();
+  const data = await getProfileByHandle(username);
   if (!data) return { title: "Profile" };
-  return { title: data.full_name || `@${data.username}` };
+  return { title: data.full_name || (data.username ? `@${data.username}` : "Profile") };
 }
 
 export default async function PublicProfilePage({
@@ -29,13 +26,13 @@ export default async function PublicProfilePage({
   const supabase = await createClient();
   const currentUser = await getCachedUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, username, full_name, bio, avatar_url, created_at, teams_visible")
-    .ilike("username", username)
-    .maybeSingle();
+  const profile = await getProfileByHandle(username);
 
   if (!profile) notFound();
+  // Opened by id but they have a username — use the nicer URL.
+  if (profile.username && profile.id === username) {
+    redirect(`/u/${encodeURIComponent(profile.username)}`);
+  }
 
   const isSelf = profile.id === currentUser?.id;
 
@@ -59,7 +56,7 @@ export default async function PublicProfilePage({
     commonTeams = (visibleTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id));
   }
 
-  const name = profile.full_name || profile.username;
+  const name = profile.full_name || profile.username || "Unnamed member";
   const color = colorForId(profile.id);
   const joined = new Date(profile.created_at).toLocaleDateString("en-US", {
     month: "long",
@@ -87,19 +84,19 @@ export default async function PublicProfilePage({
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-semibold">{name}</h1>
-            <p className="text-[13px] text-ink-faint mb-2">@{profile.username}</p>
+            {profile.username && <p className="text-[13px] text-ink-faint mb-2">@{profile.username}</p>}
             {profile.bio && (
               <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-md">{profile.bio}</p>
             )}
             <p className="text-[11.5px] text-ink-faint mt-3">Joined {joined}</p>
           </div>
           {isSelf && (
-            <a
+            <Link
               href="/settings"
               className="text-[12px] font-semibold text-amber hover:brightness-110 flex-shrink-0"
             >
               Edit profile
-            </a>
+            </Link>
           )}
         </div>
       </div>

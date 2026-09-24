@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { setPrimaryTitle, updateTitleText } from "./title-actions";
 import { useToast } from "@/components/ui/toast-provider";
-import { EditIcon } from "@/components/ui/icons";
+import { EditIcon, StarIcon } from "@/components/ui/icons";
 
 type Title = { id: string; title: string; is_picked: boolean };
 
@@ -98,8 +98,14 @@ export function TitleList({
                 clickableToPick ? "cursor-pointer hover:text-amber" : "cursor-default"
               }`}
             >
-              {t.is_picked ? "★ " : canPick ? "☆ " : ""}
-              {t.title}
+              <span className="inline-flex items-start gap-1.5">
+                {t.is_picked ? (
+                  <StarIcon filled className="w-4 h-4 mt-[1px] text-amber flex-shrink-0" />
+                ) : canPick ? (
+                  <StarIcon className="w-4 h-4 mt-[1px] text-ink-faint flex-shrink-0" />
+                ) : null}
+                <span>{t.title}</span>
+              </span>
             </button>
             {canEditText && (
               <button

@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronDownIcon } from "@/components/ui/icons";
+
 import { useEffect, useRef, useState, useTransition } from "react";
 import { requestOwnershipTransfer, cancelOwnershipTransfer } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
@@ -126,7 +128,7 @@ export function TransferOwnership({
           ) : (
             <span className="text-ink-faint flex-1">Choose a new owner…</span>
           )}
-          <span className="text-ink-faint text-xs">▾</span>
+          <ChevronDownIcon className="w-4 h-4 text-ink-faint" />
         </button>
 
         {open && (

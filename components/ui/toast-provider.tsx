@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertIcon, CheckIcon } from "./icons";
+
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
 type Toast = { id: number; kind: "success" | "error"; message: string };
@@ -35,7 +37,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               t.kind === "error" ? "bg-red text-white" : "bg-ink text-paper"
             }`}
           >
-            <span className="mt-[1px]">{t.kind === "error" ? "⚠" : "✓"}</span>
+            <span className="mt-[1px] flex-shrink-0">{t.kind === "error" ? <AlertIcon className="w-4 h-4" /> : <CheckIcon className="w-4 h-4" />}</span>
             <span className="leading-snug">{t.message}</span>
           </div>
         ))}

@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronDownIcon, CheckIcon } from "./icons";
+
 import { useState, useRef, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { switchTeam } from "../../app/(dashboard)/actions";
@@ -84,7 +86,7 @@ export function WorkspaceSwitcher({
             {currentTeam.name}
           </span>
         </span>
-        <span className="text-ink-faint text-xs">▾</span>
+        <ChevronDownIcon className="w-4 h-4 text-ink-faint flex-shrink-0" />
       </button>
 
       {open && (
@@ -105,7 +107,7 @@ export function WorkspaceSwitcher({
                 {t.name}
               </span>
               {t.id === currentTeam.id && (
-                <span className="text-amber text-xs">✓</span>
+                <CheckIcon className="w-4 h-4 text-amber" />
               )}
             </button>
           ))}

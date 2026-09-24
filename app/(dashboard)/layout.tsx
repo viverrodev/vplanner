@@ -73,7 +73,8 @@ export default async function DashboardLayout({
               <div className="flex-1" />
               <NotificationBell notifications={notifications ?? []} userId={user!.id} />
               <ThemeToggle />
-              <form action={signOut}>
+              {/* On phones, Log out lives in Settings — keeps the header uncluttered. */}
+              <form action={signOut} className="hidden md:block">
                 <button
                   type="submit"
                   className="rounded-lg border border-line/15 px-3 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:border-line/30 transition-colors"
@@ -89,7 +90,7 @@ export default async function DashboardLayout({
               userAvatarUrl={resolvedAvatar}
               userColor={resolvedColor}
             />
-            <main className="flex-1 pb-16 md:pb-0">{children}</main>
+            <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
             <MobileBottomNav />
           </div>
         </div>

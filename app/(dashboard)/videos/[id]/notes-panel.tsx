@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { CommentDeleteButton } from "./comment-delete-button";
 import { relativeTime } from "@/lib/relative-time";
 import { initialsFor } from "@/lib/avatar";
-import { ExpandIcon, CloseIcon } from "@/components/ui/icons";
+import { ExpandIcon, CloseIcon, FileIcon } from "@/components/ui/icons";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { MentionInput } from "@/components/ui/mention-input";
 import { MentionText } from "@/components/ui/mention-text";
+import { RolePills } from "@/components/ui/role-pills";
 import { useToast } from "@/components/ui/toast-provider";
 import { createClient } from "@/lib/supabase/client";
 import type { MentionTarget } from "@/lib/mentions";
@@ -235,19 +236,7 @@ export function NotesPanel({
             <div className="text-[12.5px] min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-semibold">{c.name}</span>
-                {c.roles.map((r) => (
-                  <span
-                    key={r.name}
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
-                    style={{
-                      color: r.color,
-                      borderColor: `color-mix(in srgb, ${r.color} 45%, transparent)`,
-                      background: `color-mix(in srgb, ${r.color} 12%, transparent)`,
-                    }}
-                  >
-                    {r.name}
-                  </span>
-                ))}
+                <RolePills roles={c.roles} />
               </div>
               {c.body && (
                 <div className="text-ink-soft leading-relaxed mt-0.5">
@@ -278,7 +267,7 @@ export function NotesPanel({
                         download={a.name}
                         className="flex items-center gap-1.5 rounded-lg border border-line/15 bg-surface-2 px-2.5 py-1.5 text-[11.5px] font-medium hover:border-amber transition-colors"
                       >
-                        📄 {a.name.length > 22 ? `${a.name.slice(0, 19)}…` : a.name}
+                        <FileIcon className="w-3.5 h-3.5 text-ink-faint flex-shrink-0" /> {a.name.length > 22 ? `${a.name.slice(0, 19)}…` : a.name}
                         <span className="text-ink-faint">{formatBytes(a.size)}</span>
                       </a>
                     )

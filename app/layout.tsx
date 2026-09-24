@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import { AuthHashHandler } from "@/components/ui/auth-hash-handler";
 import "./globals.css";
@@ -20,6 +20,18 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   weight: ["400", "500"],
 });
+
+// viewport-fit=cover lets the app draw under the iPhone notch/home bar;
+// the fixed bottom nav then pads itself with env(safe-area-inset-*).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#EDEEE7" },
+    { media: "(prefers-color-scheme: dark)", color: "#120F0B" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: {

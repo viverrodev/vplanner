@@ -22,19 +22,37 @@ export const STAGE_ORDER: PipelineStage[] = [
   "done",
 ];
 
-export const STAGE_COLOR_VAR: Record<PipelineStage, string> = {
-  ideate: "--gold",
-  research: "--teal",
-  script: "--blue",
-  film: "--pink",
-  edit: "--violet",
-  package: "--coral",
-  publish: "--green",
-  done: "--amber",
-};
+/**
+ * Stage colors are about STATE, not identity: a calm, consistent system
+ * instead of a rainbow.
+ *   current  → orange  (where the work is right now)
+ *   done     → teal-green (finished)
+ *   upcoming → neutral
+ */
+export const STAGE_STATE_COLOR = {
+  current: "rgb(var(--amber))",
+  done: "rgb(var(--teal))",
+  upcoming: "rgb(var(--ink-faint))",
+} as const;
 
+export type StageState = keyof typeof STAGE_STATE_COLOR;
+
+/** State of `stage` for a project currently sitting in `projectStage`. */
+export function stageState(stage: PipelineStage, projectStage: PipelineStage): StageState {
+  if (projectStage === "done") return "done";
+  const i = STAGE_ORDER.indexOf(stage);
+  const current = STAGE_ORDER.indexOf(projectStage);
+  if (i < current) return "done";
+  if (i === current) return "current";
+  return "upcoming";
+}
+
+/**
+ * Color for a project that is IN this stage (list badges, notifications):
+ * orange while it's being worked on, teal-green once it's done.
+ */
 export function stageColor(stage: PipelineStage) {
-  return `rgb(var(${STAGE_COLOR_VAR[stage]}))`;
+  return stage === "done" ? STAGE_STATE_COLOR.done : STAGE_STATE_COLOR.current;
 }
 
 export function formatDate(iso: string | null) {

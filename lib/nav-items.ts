@@ -1,6 +1,12 @@
+import { HomeIcon, VideoIcon, CalendarIcon, UsersIcon } from "@/components/ui/icons";
+
+/**
+ * Sidebar + mobile bottom-bar destinations. Icons are SVG components,
+ * never Unicode symbols (iOS turns those into emoji).
+ */
 export const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: "◧", available: true },
-  { href: "/videos", label: "Long videos", icon: "▶", available: true },
-  { href: "/calendar", label: "Calendar", icon: "▦", available: false },
-  { href: "/team", label: "Team", icon: "◍", available: true },
+  { href: "/dashboard", label: "Dashboard", shortLabel: "Home", Icon: HomeIcon, available: true },
+  { href: "/videos", label: "Long videos", shortLabel: "Videos", Icon: VideoIcon, available: true },
+  { href: "/calendar", label: "Calendar", shortLabel: "Calendar", Icon: CalendarIcon, available: false },
+  { href: "/team", label: "Team", shortLabel: "Team", Icon: UsersIcon, available: true },
 ] as const;

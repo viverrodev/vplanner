@@ -5,7 +5,7 @@ import { findMentions, type MentionTarget } from "@/lib/mentions";
 import { colorForId } from "@/lib/avatar";
 import type { RoleId } from "@/lib/permissions/roles";
 import { useToast } from "./toast-provider";
-import { ArrowRightIcon } from "./icons";
+import { ArrowRightIcon, CloseIcon, ChevronRightIcon, SmileIcon, PaperclipIcon, GifIcon } from "./icons";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -328,7 +328,7 @@ export function MentionInput({
                 className="text-ink-faint hover:text-red"
                 aria-label={`Remove ${f.name}`}
               >
-                ✕
+                <CloseIcon className="w-3 h-3" />
               </button>
             </span>
           ))}
@@ -353,7 +353,7 @@ export function MentionInput({
                   >
                     <span className="w-2 h-2 rounded-full bg-ink-faint flex-shrink-0" />
                     Roles
-                    <span className="text-ink-faint text-[10.5px] font-normal ml-auto">Enter to expand ▸</span>
+                    <span className="text-ink-faint text-[10.5px] font-normal ml-auto inline-flex items-center gap-0.5">Enter to expand <ChevronRightIcon className="w-3 h-3" /></span>
                   </button>
                 );
               }
@@ -424,7 +424,7 @@ export function MentionInput({
                 onClick={() => setMenuView("emoji")}
                 className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] font-medium hover:bg-surface-2"
               >
-                🙂 Emoji
+                <SmileIcon className="w-4 h-4 text-ink-soft" /> Emoji
               </button>
               <button
                 type="button"
@@ -434,7 +434,7 @@ export function MentionInput({
                 }}
                 className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] font-medium hover:bg-surface-2"
               >
-                📎 Attach file
+                <PaperclipIcon className="w-4 h-4 text-ink-soft" /> Attach file
                 <span className="text-ink-faint text-[10.5px] ml-auto">≤25MB</span>
               </button>
               <button
@@ -442,7 +442,7 @@ export function MentionInput({
                 onClick={() => setMenuView("gif")}
                 className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] font-medium hover:bg-surface-2"
               >
-                🎞️ GIF
+                <GifIcon className="w-4 h-4 text-ink-soft" /> GIF
               </button>
             </div>
           )}

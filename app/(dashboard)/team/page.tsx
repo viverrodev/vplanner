@@ -1,3 +1,4 @@
+import { StarIcon } from "@/components/ui/icons";
 import { createClient } from "@/lib/supabase/server";
 import { getTeamsAndCurrent } from "@/lib/teams";
 import { getMembership } from "@/lib/permissions/membership";
@@ -11,6 +12,7 @@ import { TeamNameEditor } from "./team-name-editor";
 import { InviteSearch } from "./invite-search";
 import { PendingInvitesList } from "./pending-invites-list";
 import { MemberManager, type MemberRow } from "./member-manager";
+import { MemberAvatarLink, MemberNameLink } from "@/components/ui/member-identity";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Team" };
@@ -133,37 +135,17 @@ export default async function TeamPage() {
               />
             ) : (
               <div key={m.teamMemberId} className="flex items-center gap-3 py-3 border-b border-line/10 last:border-none flex-wrap">
-                {m.username ? (
-                  <a href={`/u/${m.username}`} className="flex-shrink-0">
-                    <span
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white overflow-hidden hover:opacity-80 transition-opacity"
-                      style={{ background: m.color }}
-                    >
-                      {m.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img loading="lazy" decoding="async" src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        initialsFor(m.name)
-                      )}
-                    </span>
-                  </a>
-                ) : (
-                  <span
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
-                    style={{ background: m.color }}
-                  >
-                    {m.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img loading="lazy" decoding="async" src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      initialsFor(m.name)
-                    )}
-                  </span>
-                )}
+                <MemberAvatarLink
+                  userId={m.userId}
+                  username={m.username}
+                  name={m.name}
+                  avatarUrl={m.avatarUrl}
+                  color={m.color}
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold flex items-center gap-1.5">
-                    {m.name}
-                    {m.isOwner && <span className="text-amber text-[11px]">★ Owner</span>}
+                  <div className="text-[13.5px] font-semibold flex items-center gap-1.5 min-w-0">
+                    <MemberNameLink userId={m.userId} username={m.username} name={m.name} />
+                    {m.isOwner && <span className="inline-flex items-center gap-1 text-amber text-[11px] font-semibold"><StarIcon filled className="w-3 h-3" /> Owner</span>}
                   </div>
                   <div className="text-[11.5px] text-ink-faint">{m.email}</div>
                 </div>

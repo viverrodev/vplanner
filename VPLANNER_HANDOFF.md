@@ -55,7 +55,7 @@ Internal content-production dashboard for a YouTube team. Stack: **Next.js 15 (A
 
 ## Current roadmap
 - ✅ Part 1: performance foundation (0023 + app-wide patterns)
-- ⏭ Part 2: UI/mobile polish — 404 page, "team disbanded" notification, clickable member profiles for non-masters, role pills max 2 + "+N" popover, stage colors (orange current / teal-green done / neutral upcoming), calmer long-form filters, SVG sidebar icons (iOS emoji issue), centered mobile notifications panel
+- ✅ Part 2: UI/mobile polish — 404 (in-shell via `(dashboard)/[...missing]` catch-all + root fallback), `team_disbanded` notification, profiles linkable for everyone (`/u/<username>` or `/u/<user-id>`, `profileHref()`), `RolePills` (max 2 + "+N"), state-based stage colors (`stageState()` / `STAGE_STATE_COLOR`: orange current, teal done, neutral upcoming), neutral filter chips with counts, SVG icon set (never Unicode symbols for UI chrome — iOS renders them as emoji), notifications panel rendered in a portal (the header's backdrop-blur was trapping `position: fixed`), bottom nav with safe-area padding
 - ⏭ Part 3: global search (pg_trgm, one security-definer RPC, Ctrl/⌘+K, keyboard nav, invite-to-team from results, mobile sheet, recents, quick actions)
 - Then: social account connections (own focused phase)
 
@@ -67,6 +67,6 @@ Internal content-production dashboard for a YouTube team. Stack: **Next.js 15 (A
 - **Dashboard to-do widget** — user wants a quick-glance "things assigned to me" widget on the main dashboard eventually; nothing built yet, just noted for later.
 
 ## What to upload in the new conversation
-Upload the **most recent zip** you have from this conversation (the production service-role-key fix didn't require a new zip — the last real code delivery was `vplanner-part1-performance.zip`). If you've made any manual edits since then (like deleting the old `invite-form.tsx` or similar), make sure those are reflected in what you upload, or just say so.
+Upload the **most recent zip** you have from this conversation (the production service-role-key fix didn't require a new zip — the last real code delivery was `vplanner-part2-polish.zip`). If you've made any manual edits since then (like deleting the old `invite-form.tsx` or similar), make sure those are reflected in what you upload, or just say so.
 
 Paste this whole document as your first message, then attach that zip.

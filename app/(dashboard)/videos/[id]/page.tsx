@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMembership, canActOnStage } from "@/lib/permissions/membership";
 import { isMaster, roleAllowsStage, ROLES } from "@/lib/permissions/roles";
 import type { PipelineStage, RoleId } from "@/lib/permissions/roles";
-import { STAGE_LABELS, STAGE_ORDER, stageColor } from "@/modules/long-videos/lib/stages";
+import { STAGE_LABELS, STAGE_ORDER, STAGE_STATE_COLOR, stageState } from "@/modules/long-videos/lib/stages";
 import { getCachedUser } from "@/lib/supabase/get-user";
 import { colorForId, displayName } from "@/lib/avatar";
 import { getRoleColors } from "@/lib/permissions/team-role-colors";
@@ -23,6 +23,7 @@ import { postComment } from "./actions";
 import type { Metadata } from "next";
 import { getProject } from "@/modules/long-videos/lib/queries";
 import { LinkPendingIndicator } from "@/components/ui/link-pending";
+import { ScrollToCurrent } from "@/components/ui/scroll-to-current";
 
 const TABS: PipelineStage[] = [
   "ideate",
@@ -131,10 +132,15 @@ export default async function ProjectDetailPage({
     })
   );
 
+  const roleOrder = (r: RoleId) => ROLES.findIndex((x) => x.id === r);
   const peopleByUserId = new Map(
     (teamMembers ?? []).map((m) => {
       const profile = m.profiles as unknown as { username: string | null; full_name: string | null; email: string | null; avatar_url: string | null } | null;
-      const roles = (m.member_roles ?? []).map((r: { role: RoleId }) => r.role);
+      // Canonical order (Master first, then pipeline order) so the two
+      // pills shown in chat are always the most meaningful ones.
+      const roles = (m.member_roles ?? [])
+        .map((r: { role: RoleId }) => r.role)
+        .sort((a: RoleId, b: RoleId) => roleOrder(a) - roleOrder(b));
       const name = displayName(profile?.username, profile?.full_name, profile?.email);
       return [m.user_id, { name, roles, color: colorForId(m.user_id), avatarUrl: profile?.avatar_url ?? null }];
     })
@@ -264,15 +270,14 @@ export default async function ProjectDetailPage({
       </div>
 
       {/* Stage tracker */}
-      <div className="flex items-center mb-8 overflow-x-auto no-scrollbar pb-1">
+      <ScrollToCurrent className="flex items-center mb-8 overflow-x-auto no-scrollbar pb-1 scroll-smooth">
         {STAGE_ORDER.map((s, i) => {
-          const isDone = i < currentIndex;
-          const isCurrent = i === currentIndex;
-          const stepColor = isCurrent
-            ? "rgb(var(--amber))"
-            : stageColor(s);
+          const state = stageState(s, project.stage as PipelineStage);
+          const isDone = state === "done";
+          const isCurrent = state === "current";
+          const stepColor = STAGE_STATE_COLOR[state];
           return (
-            <div key={s} className="flex items-center flex-shrink-0">
+            <div key={s} className="flex items-center flex-shrink-0" data-current={isCurrent ? "true" : undefined}>
               <div className="flex flex-col items-center gap-1.5 min-w-[74px]">
                 <div
                   className={`rounded-full flex items-center justify-center font-bold border-2 transition-all ${
@@ -294,14 +299,17 @@ export default async function ProjectDetailPage({
                 <div
                   className="w-8 h-[2px] mb-4 flex-shrink-0"
                   style={{
-                    background: i < currentIndex ? stageColor(s) : "rgb(var(--line) / 0.15)",
+                    background:
+                      stageState(STAGE_ORDER[i + 1], project.stage as PipelineStage) !== "upcoming"
+                        ? STAGE_STATE_COLOR.done
+                        : "rgb(var(--line) / 0.15)",
                   }}
                 />
               )}
             </div>
           );
         })}
-      </div>
+      </ScrollToCurrent>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-line/10 mb-6 overflow-x-auto no-scrollbar">

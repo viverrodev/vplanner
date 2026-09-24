@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   markNotificationRead,
   markAllNotificationsRead,
@@ -42,6 +43,13 @@ export type NotificationItem = {
     accepted?: boolean;
   } | null;
 };
+
+// Stage pills use the app-wide state colors (orange = in progress,
+// teal-green = done) — deliberately ignoring the per-stage colors older
+// notifications stored in their metadata.
+function stageTone(m: NonNullable<NotificationItem["metadata"]>) {
+  return m.stageLabel === "Done" ? "rgb(var(--teal))" : "rgb(var(--amber))";
+}
 
 function actionableStatus(n: NotificationItem): string | null {
   const rel = n.team_invite_id ? n.team_invites : n.ownership_transfer_id ? n.ownership_transfer_requests : null;
@@ -92,9 +100,9 @@ function LeadingVisual({ n }: { n: NotificationItem }) {
     return (
       <span
         className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ background: `color-mix(in srgb, ${m.stageColor} 18%, transparent)` }}
+        style={{ background: `color-mix(in srgb, ${stageTone(m)} 18%, transparent)` }}
       >
-        <span className="w-2.5 h-2.5 rounded-full" style={{ background: m.stageColor }} />
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: stageTone(m) }} />
       </span>
     );
   }
@@ -134,6 +142,12 @@ function RichBody({ n }: { n: NotificationItem }) {
           <b>{m.actor?.name}</b> {m.accepted ? "accepted" : "declined"} ownership of <b>{m.team?.name}</b>.
         </>
       );
+    case "team_disbanded":
+      return (
+        <>
+          <b>{m.actor?.name}</b> disbanded <b>{m.team?.name}</b>. Its projects and notes were deleted.
+        </>
+      );
     case "kicked":
       return (
         <>
@@ -168,7 +182,7 @@ function RichBody({ n }: { n: NotificationItem }) {
           You&rsquo;ve been tagged on <b>&ldquo;{m.projectTitle}&rdquo;</b> for{" "}
           <span
             className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
-            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+            style={{ color: stageTone(m), background: `color-mix(in srgb, ${stageTone(m)} 14%, transparent)` }}
           >
             {m.stageLabel}
           </span>
@@ -181,7 +195,7 @@ function RichBody({ n }: { n: NotificationItem }) {
           <b>&ldquo;{m.projectTitle}&rdquo;</b> moved into{" "}
           <span
             className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
-            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+            style={{ color: stageTone(m), background: `color-mix(in srgb, ${stageTone(m)} 14%, transparent)` }}
           >
             {m.stageLabel}
           </span>{" "}
@@ -194,7 +208,7 @@ function RichBody({ n }: { n: NotificationItem }) {
           <b>{m.actor?.name}</b> mentioned you in{" "}
           <span
             className="font-bold px-1.5 py-0.5 rounded-full text-[10.5px]"
-            style={{ color: m.stageColor, background: `color-mix(in srgb, ${m.stageColor} 14%, transparent)` }}
+            style={{ color: stageTone(m), background: `color-mix(in srgb, ${stageTone(m)} 14%, transparent)` }}
           >
             {m.stageLabel}
           </span>{" "}
@@ -217,6 +231,13 @@ export function NotificationBell({
   const [, startTransition] = useTransition();
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  // Desktop anchor, measured when opening. The panel is rendered in a
+  // portal on <body> because the sticky header uses backdrop-blur, and a
+  // blurred ancestor traps position:fixed children inside it — that's
+  // what pushed the panel off-screen on phones.
+  const [anchor, setAnchor] = useState<{ top: number; right: number }>({ top: 64, right: 16 });
   const router = useRouter();
   const toast = useToast();
 
@@ -255,6 +276,14 @@ export function NotificationBell({
             .maybeSingle();
           if (!data) return;
           const row = data as unknown as NotificationItem;
+          // These change which teams/permissions you have — re-render the
+          // page so the switcher and current screen reflect it right away.
+          if (
+            payload.eventType === "INSERT" &&
+            ["team_disbanded", "kicked", "role_changed", "ownership_response"].includes(row.kind ?? "")
+          ) {
+            router.refresh();
+          }
           setItems((cur) => {
             if (payload.eventType === "INSERT") {
               return [row, ...cur.filter((n) => n.id !== id)].slice(0, 50);
@@ -267,7 +296,7 @@ export function NotificationBell({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, router]);
 
   function markReadLocally(id: string) {
     setItems((cur) => cur.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
@@ -284,8 +313,19 @@ export function NotificationBell({
   }
 
   useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
@@ -334,7 +374,12 @@ export function NotificationBell({
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={bellRef}
+        onClick={() => {
+          const rect = bellRef.current?.getBoundingClientRect();
+          if (rect) setAnchor({ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) });
+          setOpen((o) => !o);
+        }}
         className="relative w-9 h-9 rounded-lg flex items-center justify-center text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
         aria-label="Notifications"
       >
@@ -346,8 +391,24 @@ export function NotificationBell({
         )}
       </button>
 
-      {open && (
-        <div className="absolute top-[calc(100%+8px)] right-0 w-[340px] max-w-[90vw] rounded-xl border border-line/10 bg-surface shadow-xl overflow-hidden z-40 animate-[modalin_.12s_ease]">
+      {open &&
+        createPortal(
+          <>
+            {/* Mobile: dimmed backdrop, tap anywhere outside to close. */}
+            <div
+          className="sm:hidden fixed inset-0 z-[59] bg-black/40 backdrop-blur-[1px] animate-[fadein_.15s_ease]"
+          onClick={() => setOpen(false)}
+          aria-hidden
+        />
+            {/* Mobile: a centered sheet under the header that always fits
+                the screen. Desktop: a dropdown anchored under the bell. */}
+        <div
+          ref={panelRef}
+          role="dialog"
+          style={{ ["--bell-top" as string]: `${anchor.top}px`, ["--bell-right" as string]: `${anchor.right}px` }}
+          aria-label="Notifications"
+          className="fixed left-3 right-3 top-[calc(3.75rem+env(safe-area-inset-top))] mx-auto max-w-[440px] sm:left-auto sm:right-[var(--bell-right)] sm:top-[var(--bell-top)] sm:mx-0 sm:w-[360px] sm:max-w-[calc(100vw-2rem)] rounded-2xl sm:rounded-xl border border-line/10 bg-surface shadow-2xl overflow-hidden z-[60] animate-[modalin_.14s_ease]"
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-line/10">
             <span className="font-display font-semibold text-[13.5px]">
               Notifications
@@ -361,7 +422,7 @@ export function NotificationBell({
               </button>
             )}
           </div>
-          <div className="max-h-[380px] overflow-y-auto styled-scroll">
+          <div className="max-h-[min(70dvh,480px)] sm:max-h-[420px] overflow-y-auto overscroll-contain styled-scroll">
             {items.length === 0 ? (
               <div className="px-4 py-10 text-center text-[12.5px] text-ink-faint">
                 Nothing yet.
@@ -432,7 +493,9 @@ export function NotificationBell({
             )}
           </div>
         </div>
-      )}
+      </>,
+          document.body
+        )}
     </div>
   );
 }

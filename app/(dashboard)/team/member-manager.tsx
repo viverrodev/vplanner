@@ -1,12 +1,14 @@
 "use client";
 
+import { StarIcon, LockIcon } from "@/components/ui/icons";
+
 import { useState, useTransition } from "react";
 import { setMemberRoles, kickMember } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { useToast } from "@/components/ui/toast-provider";
 import { ROLES } from "@/lib/permissions/roles";
 import type { RoleId } from "@/lib/permissions/roles";
-import { initialsFor } from "@/lib/avatar";
+import { MemberAvatarLink, MemberNameLink } from "@/components/ui/member-identity";
 
 export type MemberRow = {
   teamMemberId: string;
@@ -76,43 +78,17 @@ export function MemberManager({
   return (
     <div className="border-b border-line/10 last:border-none">
       <div className="flex items-center gap-3 py-3 flex-wrap">
-        {member.username ? (
-          <a href={`/u/${member.username}`} className="flex-shrink-0">
-            <span
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:opacity-80 transition-opacity overflow-hidden"
-              style={{ background: member.color }}
-            >
-              {member.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img loading="lazy" decoding="async" src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                initialsFor(member.name)
-              )}
-            </span>
-          </a>
-        ) : (
-          <span
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
-            style={{ background: member.color }}
-          >
-            {member.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img loading="lazy" decoding="async" src={member.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initialsFor(member.name)
-            )}
-          </span>
-        )}
+        <MemberAvatarLink
+          userId={member.userId}
+          username={member.username}
+          name={member.name}
+          avatarUrl={member.avatarUrl}
+          color={member.color}
+        />
         <div className="min-w-0">
           <div className="text-[13.5px] font-semibold flex items-center gap-1.5">
-            {member.username ? (
-              <a href={`/u/${member.username}`} className="hover:text-amber transition-colors">
-                {member.name}
-              </a>
-            ) : (
-              member.name
-            )}
-            {member.isOwner && <span className="text-amber text-[11px]">★ Owner</span>}
+            <MemberNameLink userId={member.userId} username={member.username} name={member.name} />
+            {member.isOwner && <span className="inline-flex items-center gap-1 text-amber text-[11px] font-semibold"><StarIcon filled className="w-3 h-3" /> Owner</span>}
             {member.status === "invited" && (
               <span className="text-[10px] font-bold uppercase tracking-wide text-ink-faint bg-surface-2 px-1.5 py-0.5 rounded">
                 Invited
@@ -189,8 +165,10 @@ export function MemberManager({
                   } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
                   style={active ? { background: roleColors[r.id], borderColor: roleColors[r.id] } : undefined}
                 >
-                  {r.name}
-                  {locked && " 🔒"}
+                  <span className="inline-flex items-center gap-1">
+                    {r.name}
+                    {locked && <LockIcon className="w-3 h-3" />}
+                  </span>
                 </button>
               );
             })}

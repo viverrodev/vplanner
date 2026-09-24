@@ -157,6 +157,18 @@ export async function deleteTeam(teamId: string) {
 
   const admin = createAdminClient();
 
+  // Capture who to tell and what to call it BEFORE it's gone. The logo is
+  // deliberately left out: it's deleted along with the team, so the
+  // notification falls back to the team's color + initials.
+  const [{ data: teamRow }, { data: memberRows }, actor] = await Promise.all([
+    admin.from("teams").select("name, color").eq("id", teamId).single(),
+    admin.from("team_members").select("user_id").eq("team_id", teamId).eq("status", "active"),
+    actorMeta(admin, user.id),
+  ]);
+  const recipients = (memberRows ?? [])
+    .map((m) => m.user_id as string | null)
+    .filter((id): id is string => !!id && id !== user.id);
+
   const { data: projects } = await admin
     .from("long_video_projects")
     .select("id")
@@ -186,6 +198,21 @@ export async function deleteTeam(teamId: string) {
 
   const { error } = await admin.from("teams").delete().eq("id", teamId);
   if (error) return { error: "Couldn't delete the team — try again." };
+
+  if (recipients.length > 0) {
+    const teamName = teamRow?.name ?? "A team";
+    await sendNotifications(
+      recipients.map((recipient_id) => ({
+        recipient_id,
+        kind: "team_disbanded",
+        metadata: {
+          actor,
+          team: { name: teamName, color: teamRow?.color ?? "#E8630D", logoUrl: null },
+        },
+        body: `${actor.name} disbanded ${teamName}.`,
+      }))
+    );
+  }
 
   revalidatePath("/", "layout");
   redirect("/dashboard");

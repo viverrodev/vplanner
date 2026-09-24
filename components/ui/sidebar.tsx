@@ -2,7 +2,7 @@ import Link from "next/link";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import type { TeamSummary } from "@/lib/teams";
 import { initialsFor } from "@/lib/avatar";
-import { NAV_ITEMS } from "@/lib/nav-items";
+import { SidebarNav } from "./sidebar-nav";
 import { SettingsIcon } from "./icons";
 
 export function Sidebar({
@@ -32,36 +32,7 @@ export function Sidebar({
         Workspace
       </div>
 
-      <nav className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) =>
-          item.available ? (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-semibold text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
-            >
-              <span className="w-[18px] text-center text-[15px]">
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          ) : (
-            <div
-              key={item.href}
-              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-semibold text-ink-faint cursor-default"
-              title="Coming soon"
-            >
-              <span className="w-[18px] text-center text-[15px] opacity-60">
-                {item.icon}
-              </span>
-              {item.label}
-              <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-ink-faint/70">
-                Soon
-              </span>
-            </div>
-          )
-        )}
-      </nav>
+      <SidebarNav />
 
       <div className="mt-auto pt-3 border-t border-line/10">
         <div className="flex items-center gap-1">

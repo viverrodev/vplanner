@@ -1,5 +1,7 @@
 "use client";
 
+import { CloseIcon } from "@/components/ui/icons";
+
 import { useTransition } from "react";
 import { deleteComment } from "./actions";
 import { useConfirm } from "@/components/ui/confirm-provider";
@@ -38,7 +40,7 @@ export function CommentDeleteButton({
       title="Delete"
       className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] text-ink-faint hover:text-red hover:bg-red/10 transition-colors disabled:opacity-40"
     >
-      ✕
+      <CloseIcon className="w-3 h-3" />
     </button>
   );
 }

@@ -163,3 +163,16 @@ Files in `supabase/migrations/` are run in order on BOTH Supabase projects
 - Images: upload through `compressImage()` with an `IMAGE_PRESETS` entry
   and `UPLOAD_CACHE_CONTROL`; render with `loading="lazy"
   decoding="async"`.
+
+## UI conventions
+
+- **Icons:** SVG components from `components/ui/icons.tsx` only. Never use
+  Unicode symbols (▶ ✓ ★ 📅 …) for UI — iOS renders many as emoji.
+- **Stage colors mean state, not identity:** `stageState()` +
+  `STAGE_STATE_COLOR` (orange = current, teal = done, neutral = upcoming).
+- **Popovers/overlays that must escape the header** render through a
+  portal on `document.body` — the sticky header's `backdrop-blur` traps
+  `position: fixed` children.
+- **People link to profiles** via `profileHref()` / `MemberAvatarLink` /
+  `MemberNameLink`; `/u/<username>` or `/u/<user-id>` both work.
+- **Roles next to a name:** `<RolePills roles={…} />` (max 2 + "+N").

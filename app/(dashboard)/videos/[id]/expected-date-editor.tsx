@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { updateExpectedDate } from "./actions";
 import { useToast } from "@/components/ui/toast-provider";
 import { formatDate } from "@/modules/long-videos/lib/stages";
-import { EditIcon } from "@/components/ui/icons";
+import { EditIcon, CalendarIcon } from "@/components/ui/icons";
 
 export function ExpectedDateEditor({
   projectId,
@@ -75,7 +75,7 @@ export function ExpectedDateEditor({
         background: "rgb(var(--amber) / 0.1)",
       }}
     >
-      <span className="text-amber text-[13px]">📅</span>
+      <CalendarIcon className="w-4 h-4 text-amber" />
       <span className="text-[13.5px] font-bold text-amber">
         {date ? formatDate(date) : "No expected date set"}
       </span>

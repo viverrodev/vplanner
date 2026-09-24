@@ -10,8 +10,9 @@ import {
 } from "@/modules/long-videos/lib/stages";
 import type { PipelineStage } from "@/lib/permissions/roles";
 import { colorForId } from "@/lib/avatar";
-import { GridIcon, ListIcon } from "@/components/ui/icons";
+import { GridIcon, ListIcon, CalendarIcon } from "@/components/ui/icons";
 import { setViewMode } from "./view-mode-actions";
+import { LinkPendingIndicator } from "@/components/ui/link-pending";
 import { VIEW_MODE_COOKIE } from "@/lib/view-mode";
 import type { Metadata } from "next";
 
@@ -54,7 +55,15 @@ export default async function VideosPage({
     query = query.eq("stage", stageFilter);
   }
 
-  const { data: projects } = await query;
+  // Stage counts for the filter chips — one tiny query (just the stage
+  // column), run in parallel with the main list.
+  const [{ data: projects }, { data: stageRows }] = await Promise.all([
+    query,
+    supabase.from("long_video_projects").select("stage").eq("team_id", currentTeam.id),
+  ]);
+  const stageCounts = new Map<string, number>();
+  (stageRows ?? []).forEach((r) => stageCounts.set(r.stage, (stageCounts.get(r.stage) ?? 0) + 1));
+  const totalCount = stageRows?.length ?? 0;
   const thumbnailBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/thumbnails/`;
 
   return (
@@ -78,37 +87,47 @@ export default async function VideosPage({
 
       {/* Filters — small, low-key, border-led rather than solid fills — with the view toggle on the same row, opposite side */}
       <div className="flex items-center justify-between gap-3 mb-7 flex-wrap">
-        <div className="flex flex-wrap gap-1.5">
-        <Link
-          href={`/videos${isTable ? "?view=table" : ""}`}
-          className={`rounded-full px-3 py-1 text-[11.5px] font-bold border transition-colors ${
-            !stageFilter
-              ? "border-ink text-ink"
-              : "border-line/15 text-ink-faint hover:border-line/30"
-          }`}
-        >
-          All
-        </Link>
-        {STAGE_ORDER.map((s) => {
-          const active = stageFilter === s;
-          const c = stageColor(s);
-          const href = `/videos?stage=${s}${isTable ? "&view=table" : ""}`;
-          return (
-            <Link
-              key={s}
-              href={href}
-              className="rounded-full px-3 py-1 text-[11.5px] font-bold border transition-colors flex items-center gap-1.5"
-              style={{
-                borderColor: active ? c : `color-mix(in srgb, ${c} 30%, transparent)`,
-                color: c,
-                background: active ? `color-mix(in srgb, ${c} 12%, transparent)` : "transparent",
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c }} />
-              {STAGE_LABELS[s]}
-            </Link>
-          );
-        })}
+        {/* Neutral, quiet filter chips: color is reserved for the ONE that's
+            selected. One scrollable row on phones instead of wrapping. */}
+        <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex-1 min-w-0 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1 w-max sm:w-auto sm:flex-wrap">
+            {[{ key: "", label: "All", count: totalCount }, ...STAGE_ORDER.map((st) => ({
+              key: st,
+              label: STAGE_LABELS[st],
+              count: stageCounts.get(st) ?? 0,
+            }))].map((f) => {
+              const active = (stageFilter ?? "") === f.key;
+              const params = new URLSearchParams();
+              if (f.key) params.set("stage", f.key);
+              if (isTable) params.set("view", "table");
+              const href = `/videos${params.toString() ? `?${params}` : ""}`;
+              return (
+                <Link
+                  key={f.key || "all"}
+                  href={href}
+                  scroll={false}
+                  aria-current={active ? "page" : undefined}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+                    active
+                      ? "bg-ink text-paper"
+                      : f.count === 0
+                        ? "text-ink-faint/70 hover:bg-surface-2 hover:text-ink-soft"
+                        : "text-ink-soft hover:bg-surface-2 hover:text-ink"
+                  }`}
+                >
+                  {f.label}
+                  <span
+                    className={`text-[11px] tabular-nums font-medium ${
+                      active ? "text-paper/60" : "text-ink-faint"
+                    }`}
+                  >
+                    {f.count}
+                  </span>
+                  <LinkPendingIndicator />
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex items-center rounded-lg border border-line/15 p-0.5 flex-shrink-0">
@@ -258,7 +277,7 @@ export default async function VideosPage({
                     className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 -mx-0.5 mt-auto"
                     style={{ background: "rgb(var(--amber) / 0.12)" }}
                   >
-                    <span className="text-amber text-[12px]">📅</span>
+                    <CalendarIcon className="w-3.5 h-3.5 text-amber" />
                     <span className="font-bold text-[12.5px] text-amber">{formatDate(p.expected_date)}</span>
                   </div>
                 </div>
