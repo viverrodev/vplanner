@@ -29,6 +29,8 @@ export function ScheduleField({
   perDay,
   limits = {},
   weekends = true,
+  queueStart = null,
+  canStartQueue = true,
   excludeId,
   disabled,
 }: {
@@ -42,6 +44,10 @@ export function ScheduleField({
   /** Day exceptions: { "2026-09-30": 1 } */
   limits?: Record<string, number>;
   weekends?: boolean;
+  /** The short that currently starts the queue (only one allowed). */
+  queueStart?: { id: string; number: number; date: string } | null;
+  /** Only the master can make a short start the queue. */
+  canStartQueue?: boolean;
   excludeId?: string;
   disabled?: boolean;
 }) {
@@ -56,7 +62,10 @@ export function ScheduleField({
   }, [planned, excludeId]);
 
   const pinnedDate = value.mode === "pinned" ? value.date : null;
-  const kind: PinKind = value.mode === "pinned" ? value.kind : "anchor";
+  // Only one short can start the queue. If another one does, new fixed
+  // dates default to "Just this one" and the other option is locked.
+  const startBlocked = !canStartQueue || (!!queueStart && queueStart.id !== excludeId);
+  const kind: PinKind = value.mode === "pinned" ? value.kind : startBlocked ? "oneoff" : "anchor";
   const pin = (date: string) => onChange({ mode: "pinned", date, kind });
   const capacity = (d: string) =>
     d in limits ? limits[d] : !weekends && [0, 6].includes(new Date(d + "T00:00:00").getDay()) ? 0 : perDay;
@@ -120,7 +129,7 @@ export function ScheduleField({
           <b className="text-ink">{autoDate ? formatShortDate(autoDate) : "the next free slot"}</b>
           {autoDate && relativeDay(autoDate) ? <span className="text-ink-faint"> · {relativeDay(autoDate)}</span> : null}
           <span className="block text-[11.5px] text-ink-faint mt-0.5">
-            Fills the next free slot ({perDay} per day). Moves automatically if the schedule changes.
+            Takes the next free slot. Moves on its own if the plan changes.
           </span>
         </p>
       ) : (
@@ -130,19 +139,20 @@ export function ScheduleField({
           </p>
           <div role="radiogroup" aria-label="How the queue treats this date" className="grid gap-1.5 sm:grid-cols-2">
             {([
-              ["anchor", "Start queue from here", "Auto shorts after it continue from this date."],
-              ["oneoff", "Just this one", "Holds its slot; the queue carries on as if it weren't there."],
+              ["anchor", "Start queue from here", "Auto shorts after this continue from its date."],
+              ["oneoff", "Just this one", "Only this short moves. The queue ignores it."],
             ] as const).map(([k, label, hint]) => {
               const on = kind === k;
+              const locked = k === "anchor" && startBlocked && !on;
               return (
                 <button
                   key={k}
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  disabled={disabled}
+                  disabled={disabled || locked}
                   onClick={() => onChange({ mode: "pinned", date: value.date, kind: k })}
-                  className={`text-left rounded-lg border px-3 py-2 transition-colors disabled:opacity-50 ${
+                  className={`text-left rounded-lg border px-3 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     on ? "border-amber bg-amber/10" : "border-line/15 hover:border-line/30"
                   }`}
                 >
@@ -150,7 +160,13 @@ export function ScheduleField({
                     <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${on ? "border-amber bg-amber shadow-[inset_0_0_0_2px_rgb(var(--surface))]" : "border-line/40"}`} />
                     {label}
                   </span>
-                  <span className="block text-[11.5px] text-ink-soft mt-0.5 pl-[22px]">{hint}</span>
+                  <span className="block text-[11.5px] text-ink-soft mt-0.5 pl-[22px]">
+                    {locked
+                      ? !canStartQueue
+                        ? "Only the master can start the queue."
+                        : `#${queueStart!.number} already starts the queue. Release it first.`
+                      : hint}
+                  </span>
                 </button>
               );
             })}

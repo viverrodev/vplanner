@@ -162,7 +162,7 @@ function RichBody({ n }: { n: NotificationItem }) {
       return (
         <>
           <b>{m.actor?.name}</b> made you the editor on <ShortRef m={m} />
-          {m.readyToEdit ? " — it's ready to edit." : "."}
+          {m.readyToEdit ? ". It's ready to edit." : "."}
         </>
       );
     case "short_role_assigned":
@@ -181,7 +181,7 @@ function RichBody({ n }: { n: NotificationItem }) {
     case "short_review_ready":
       return (
         <>
-          <b>{m.actor?.name}</b> finished editing <ShortRef m={m} /> — ready for your review.
+          <b>{m.actor?.name}</b> finished editing <ShortRef m={m} />. Ready for your review.
         </>
       );
     case "short_changes_requested":
@@ -259,8 +259,8 @@ function RichBody({ n }: { n: NotificationItem }) {
             style={{ color: stageTone(m), background: `color-mix(in srgb, ${stageTone(m)} 14%, transparent)` }}
           >
             {m.stageLabel}
-          </span>{" "}
-          — you have work to do.
+          </span>
+          . You have work to do.
         </>
       );
     case "mention":

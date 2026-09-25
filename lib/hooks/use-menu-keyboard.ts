@@ -19,7 +19,7 @@ export function useMenuKeyboard(
     const menu = menuRef.current;
     if (!menu) return;
     const items = () =>
-      Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
+      Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled]), [role="menuitemradio"]:not([disabled])'));
 
     requestAnimationFrame(() => items()[0]?.focus());
 

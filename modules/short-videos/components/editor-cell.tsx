@@ -31,7 +31,7 @@ export function EditorCell({
   const confirm = useConfirm();
   const [shown, setShown] = useState<Current>(current);
   const assign = useAction(assignShortPerson, {
-    success: (_id, _role, m) => (m ? `Editor changed on #${number} — they've been notified` : `Editor removed from #${number}`),
+    success: (_id, _role, m) => (m ? `Editor changed on #${number}. They've been notified` : `Editor removed from #${number}`),
     onError: () => setShown(current),
   });
 
@@ -67,9 +67,10 @@ export function EditorCell({
   }
 
   return (
-    <span className="relative z-10 min-w-0 max-w-full">
+    <span className="relative z-10 flex min-w-0 w-full">
       <Select
         variant="inline"
+        fullWidth
         value={shown?.memberId ?? null}
         onChange={onPick}
         options={personOptions("editor", editors, shown?.memberId ?? null)}

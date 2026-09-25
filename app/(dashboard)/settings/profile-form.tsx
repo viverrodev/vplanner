@@ -28,7 +28,7 @@ export function ProfileForm({
           />
         </div>
         <p className="text-[11px] text-ink-faint mt-1">
-          3–20 characters — letters, numbers, underscores. Shown everywhere instead of your email.
+          3 to 20 letters, numbers or underscores. Shown instead of your email.
         </p>
       </div>
 

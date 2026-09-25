@@ -63,7 +63,7 @@ export async function deleteProject(projectId: string, _teamId?: string) {
   }
 
   const { error } = await admin.from("long_video_projects").delete().eq("id", projectId);
-  if (error) return { error: "Couldn't delete the project — try again." };
+  if (error) return { error: "Couldn't delete the project. Try again." };
 
   revalidatePath("/videos");
   redirect("/videos");
@@ -103,7 +103,7 @@ export async function updateTypeTheme(
     })
     .eq("id", projectId);
 
-  if (error) return { error: "Couldn't save — try again." };
+  if (error) return { error: "Couldn't save. Try again." };
 
   revalidatePath(`/videos/${projectId}`);
   revalidatePath("/videos");
@@ -133,7 +133,7 @@ export async function updateExpectedDate(
     .update({ expected_date: date || null, updated_at: new Date().toISOString(), updated_by: user.id })
     .eq("id", projectId);
 
-  if (error) return { error: "Couldn't save — try again." };
+  if (error) return { error: "Couldn't save. Try again." };
 
   revalidatePath(`/videos/${projectId}`);
   revalidatePath("/videos");
@@ -174,7 +174,7 @@ export async function updateIdeateField(
     .update({ [field]: value || null, updated_at: new Date().toISOString(), updated_by: user.id })
     .eq("id", projectId);
 
-  if (error) return { error: "Couldn't save — try again." };
+  if (error) return { error: "Couldn't save. Try again." };
 
   revalidatePath(`/videos/${projectId}`);
   return { success: true, updatedAt: new Date().toISOString() };
@@ -202,7 +202,7 @@ export async function regressStage(projectId: string) {
   if (error) {
     return {
       error:
-        "Couldn't move this back — you may not have permission to do this.",
+        "Couldn't move this back. You may not have permission to do this.",
     };
   }
 
@@ -255,7 +255,7 @@ export async function advanceStage(projectId: string) {
   if (error) {
     return {
       error:
-        "Couldn't advance the project — you may not have permission to do this.",
+        "Couldn't advance the project. You may not have permission to do this.",
     };
   }
 
@@ -282,7 +282,7 @@ export async function advanceStage(projectId: string) {
           stageLabel: STAGE_LABELS[next],
           stageColor: stageColor(next),
         },
-        body: `"${project.title}" moved into ${STAGE_LABELS[next]} — you have work to do.`,
+        body: `"${project.title}" moved into ${STAGE_LABELS[next]}. You have work to do.`,
       }))
     );
   }
@@ -324,7 +324,7 @@ export async function assignMember(
 
   if (error) {
     if (error.code === "23505") return { error: "They're already assigned here." };
-    return { error: "Couldn't assign — try again." };
+    return { error: "Couldn't assign. Try again." };
   }
 
   if (member.user_id) {
@@ -355,7 +355,7 @@ export async function removeAssignee(projectId: string, assigneeRowId: string) {
     .delete()
     .eq("id", assigneeRowId)
     .eq("project_id", projectId);
-  if (error) return { error: "Couldn't unassign — try again." };
+  if (error) return { error: "Couldn't unassign. Try again." };
 
   revalidatePath(`/videos/${projectId}`);
   return { success: true };
@@ -387,7 +387,7 @@ export async function postComment(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const { data: project } = await supabase
     .from("long_video_projects")
@@ -407,7 +407,7 @@ export async function postComment(
     .select("id")
     .single();
   if (error || !newComment) {
-    return { error: "Couldn't post — you may not have access to this stage." };
+    return { error: "Couldn't post. You may not have access to this stage." };
   }
 
   const attachmentsRaw = String(formData.get("attachments") ?? "[]");
@@ -499,7 +499,7 @@ export async function deleteComment(commentId: string, projectId: string) {
     .eq("id", commentId);
 
   if (error) {
-    return { error: "Couldn't delete — you may not have permission." };
+    return { error: "Couldn't delete. You may not have permission." };
   }
 
   revalidatePath(`/videos/${projectId}`);

@@ -309,7 +309,7 @@ export function NotesPanel({
       <div className="rounded-xl border border-line/10 bg-surface p-4 h-fit">
         <div className="flex items-center justify-between mb-3">
           <div className="text-[13px] font-display font-semibold">
-            Notes & Q&A — {stageLabel}
+            Notes & Q&A · {stageLabel}
           </div>
           <button
             onClick={() => setExpanded(true)}
@@ -337,7 +337,7 @@ export function NotesPanel({
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-line/10 flex-shrink-0">
               <div className="font-display font-semibold text-[16px]">
-                Notes & Q&A — {stageLabel}
+                Notes & Q&A · {stageLabel}
               </div>
               <button
                 onClick={() => setExpanded(false)}

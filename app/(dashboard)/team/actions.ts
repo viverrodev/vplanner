@@ -103,7 +103,7 @@ export async function inviteExistingUser(
     // by the invited person — don't leave a dangling invite they'll
     // never see. Roll back and report the real failure.
     await supabase.from("team_invites").delete().eq("id", invite.id);
-    return { error: "Couldn't notify them — try again." };
+    return { error: "Couldn't notify them. Try again." };
   }
 
   revalidatePath("/team");
@@ -185,7 +185,7 @@ export async function deleteTeam(teamId: string) {
   }
 
   const { error } = await admin.from("teams").delete().eq("id", teamId);
-  if (error) return { error: "Couldn't delete the team — try again." };
+  if (error) return { error: "Couldn't delete the team. Try again." };
 
   if (recipients.length > 0) {
     const teamName = teamRow?.name ?? "A team";
@@ -240,7 +240,7 @@ export async function setMemberRoles(
 
   // The team's owner is always its master — a permanent invariant.
   if (targetMember.user_id === team.owner_id && toRemove.includes("master")) {
-    return { error: "The team owner is always Master — that can't be changed." };
+    return { error: "The team owner is always Master. That can't be changed." };
   }
 
   // Master is the boss role: only the owner hands it out or takes it away.
@@ -261,13 +261,13 @@ export async function setMemberRoles(
       .delete()
       .eq("team_member_id", teamMemberId)
       .in("role", toRemove);
-    if (error) return { error: "Couldn't update roles — try again." };
+    if (error) return { error: "Couldn't update roles. Try again." };
   }
   if (toAdd.length > 0) {
     const { error } = await supabase
       .from("member_roles")
       .insert(toAdd.map((role) => ({ team_member_id: teamMemberId, role })));
-    if (error) return { error: "Couldn't update roles — try again." };
+    if (error) return { error: "Couldn't update roles. Try again." };
   }
 
   if (targetMember.user_id) {
@@ -330,7 +330,7 @@ export async function kickMember(teamId: string, teamMemberId: string) {
     .delete()
     .eq("id", teamMemberId)
     .eq("team_id", teamId);
-  if (error) return { error: "Couldn't remove them — try again." };
+  if (error) return { error: "Couldn't remove them. Try again." };
 
   if (member.user_id) {
     const teamInfo = await teamMeta(supabase, teamId);
@@ -355,7 +355,7 @@ export async function updateTeamName(teamId: string, name: string) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("teams").update({ name: trimmed }).eq("id", teamId);
-  if (error) return { error: "Couldn't rename the team — try again." };
+  if (error) return { error: "Couldn't rename the team. Try again." };
 
   revalidatePath("/", "layout");
   return { success: true };
@@ -372,7 +372,7 @@ export async function updateTeamLogo(teamId: string, logoUrl: string | null) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("teams").update({ logo_url: logoUrl }).eq("id", teamId);
-  if (error) return { error: "Couldn't save the logo — try again." };
+  if (error) return { error: "Couldn't save the logo. Try again." };
 
   revalidatePath("/", "layout");
   return { success: true };
@@ -450,7 +450,7 @@ export async function requestOwnershipTransfer(teamId: string, toUserId: string)
     if (error?.code === "23505") {
       return { error: "There's already a live transfer request for this team." };
     }
-    return { error: "Couldn't send the request — try again." };
+    return { error: "Couldn't send the request. Try again." };
   }
 
   const actor = await actorMeta(supabase, user.id);
@@ -466,7 +466,7 @@ export async function requestOwnershipTransfer(teamId: string, toUserId: string)
 
   if (notifyError) {
     await admin.from("ownership_transfer_requests").delete().eq("id", request.id);
-    return { error: "Couldn't notify them — try again." };
+    return { error: "Couldn't notify them. Try again." };
   }
 
   revalidatePath("/team");
@@ -497,7 +497,7 @@ export async function cancelOwnershipTransfer(teamId: string) {
     .eq("from_user_id", user.id)
     .eq("status", "pending");
 
-  if (error) return { error: "Couldn't cancel the request — try again." };
+  if (error) return { error: "Couldn't cancel the request. Try again." };
 
   revalidatePath("/", "layout");
   return { success: true };
@@ -514,6 +514,7 @@ export async function updateShortSettings(
     perDay: number;
     weekends: boolean;
     rollForward: boolean;
+    defaultType: "filler" | "sponsorship" | "big";
     timezone: string;
     defaultEditor: string | null;
     defaultReviewer: string | null;
@@ -541,6 +542,7 @@ export async function updateShortSettings(
       shorts_per_day: perDay,
       shorts_weekends: !!input.weekends,
       shorts_roll_forward: !!input.rollForward,
+      default_short_type: ["filler", "sponsorship", "big"].includes(input.defaultType) ? input.defaultType : "filler",
       timezone,
       default_short_editor_member_id: input.defaultEditor || null,
       default_short_reviewer_member_id: input.defaultReviewer || null,
@@ -550,7 +552,7 @@ export async function updateShortSettings(
 
   if (error) {
     const own = error.code === "23514" || error.code === "42501";
-    return { error: own ? error.message : "Couldn't save the settings — try again." };
+    return { error: own ? error.message : "Couldn't save the settings. Try again." };
   }
 
   revalidatePath("/team");

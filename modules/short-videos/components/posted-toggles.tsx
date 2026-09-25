@@ -59,8 +59,8 @@ export function PostedToggles({
                 toggle.run(shortId, p, !on);
               }}
               aria-pressed={on}
-              aria-label={`${label} — click to ${on ? "unmark" : "mark as posted"}`}
-              title={`${label} — click to ${on ? "unmark" : "mark posted"}`}
+              aria-label={`${label}. Click to ${on ? "unmark" : "mark as posted"}`}
+              title={`${label}. Click to ${on ? "unmark" : "mark posted"}`}
               className="rounded-md p-0.5 hover:bg-surface-2 active:scale-90 transition-transform"
             >
               {icon}

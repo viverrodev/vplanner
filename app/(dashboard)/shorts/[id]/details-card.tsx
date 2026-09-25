@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { assignShortPerson, updateShortDetails } from "../actions";
 import { useAction } from "@/lib/hooks/use-action";
-import { ExternalIcon, LinkIcon } from "@/components/ui/icons";
-import { PLATFORM_META, type Platform } from "@/modules/short-videos/lib/constants";
+import { PLATFORM_META, type Platform, type ShortType } from "@/modules/short-videos/lib/constants";
+import { ShortTypePicker, ShortTypeTag, Switch } from "@/modules/short-videos/components/short-type";
+import { FinalFileField } from "@/modules/short-videos/components/final-file-field";
 import type { DatedShort, TeamPerson } from "@/modules/short-videos/lib/queries";
 import type { ShortPermissions } from "@/modules/short-videos/lib/permissions";
 import { ScheduleField, type ScheduleValue } from "@/modules/short-videos/components/schedule-field";
-import { PlatformPicker } from "@/modules/short-videos/components/platform-picker";
 import { PersonSelect, type PersonKind } from "@/modules/short-videos/components/person-select";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { CopyButton } from "@/modules/short-videos/components/copy-button";
@@ -39,12 +39,15 @@ export function DetailsCard({
   perDay,
   weekends,
   limits,
+  queueStart,
   editor,
   reviewer,
   scheduler,
   platforms,
   fileLink,
   caption,
+  captionEnabled,
+  shortType,
   people,
   planned,
 }: {
@@ -56,12 +59,15 @@ export function DetailsCard({
   perDay: number;
   weekends: boolean;
   limits: Record<string, number>;
+  queueStart: { id: string; number: number; date: string } | null;
   editor: Person;
   reviewer: Person;
   scheduler: Person;
   platforms: Platform[];
   fileLink: string | null;
   caption: string | null;
+  captionEnabled: boolean;
+  shortType: ShortType;
   people: TeamPerson[];
   planned: DatedShort[];
 }) {
@@ -75,9 +81,9 @@ export function DetailsCard({
     reviewer: reviewer?.memberId ?? null,
     scheduler: scheduler?.memberId ?? null,
   });
-  const [plats, setPlats] = useState(platforms);
-  const [link, setLink] = useState(fileLink ?? "");
   const [cap, setCap] = useState(caption ?? "");
+  const [capOn, setCapOn] = useState(captionEnabled);
+  const [type, setType] = useState<ShortType>(shortType);
   const confirm = useConfirm();
 
   // Server changes (someone else edited, the queue moved it) flow back in.
@@ -86,20 +92,20 @@ export function DetailsCard({
     () => setWho({ editor: editor?.memberId ?? null, reviewer: reviewer?.memberId ?? null, scheduler: scheduler?.memberId ?? null }),
     [editor?.memberId, reviewer?.memberId, scheduler?.memberId]
   );
-  useEffect(() => setPlats(platforms), [platforms]);
-  useEffect(() => setLink(fileLink ?? ""), [fileLink]);
   useEffect(() => setCap(caption ?? ""), [caption]);
+  useEffect(() => setCapOn(captionEnabled), [captionEnabled]);
+  useEffect(() => setType(shortType), [shortType]);
 
   const save = useAction(updateShortDetails, {
     onError: () => {
       setSchedule(serverSchedule);
-      setPlats(platforms);
-      setLink(fileLink ?? "");
       setCap(caption ?? "");
+      setCapOn(captionEnabled);
+      setType(shortType);
     },
   });
   const assign = useAction(assignShortPerson, {
-    success: (_id, role, m) => (m ? `${role[0].toUpperCase()}${role.slice(1)} set — they've been notified` : `${role[0].toUpperCase()}${role.slice(1)} cleared`),
+    success: (_id, role, m) => (m ? `${role[0].toUpperCase()}${role.slice(1)} set. They've been notified` : `${role[0].toUpperCase()}${role.slice(1)} cleared`),
     onError: () =>
       setWho({ editor: editor?.memberId ?? null, reviewer: reviewer?.memberId ?? null, scheduler: scheduler?.memberId ?? null }),
   });
@@ -116,12 +122,11 @@ export function DetailsCard({
     assign.run(id, kind, memberId);
   }
 
-  const isUrl = /^https?:\/\//i.test(link.trim());
 
   return (
-    <section className="rounded-2xl border border-line/10 bg-surface p-5 sm:p-6">
+    <section className="rounded-2xl border border-line/10 bg-surface p-4 sm:p-6">
       <Row label="Post date">
-        {perms.canEditBasics ? (
+        {perms.canEditSchedule ? (
           <ScheduleField
             value={schedule}
             onChange={(v) => {
@@ -136,14 +141,19 @@ export function DetailsCard({
             perDay={perDay}
             weekends={weekends}
             limits={limits}
+            queueStart={queueStart}
+            canStartQueue={perms.canStartQueue}
             excludeId={id}
           />
         ) : (
           <p className="text-[14px] font-semibold">
             {plannedDate ? formatShortDate(plannedDate, { withYear: true }) : <span className="text-ink-faint font-normal">Not planned yet</span>}
             <span className="ml-2 text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-              {scheduleMode === "auto" ? "Auto" : pinKind === "oneoff" ? "Fixed · just this one" : "Fixed · queue starts here"}
+              {scheduleMode === "auto" ? "Auto" : pinKind === "oneoff" ? "Fixed, just this one" : "Fixed, starts the queue"}
             </span>
+            {scheduleMode === "pinned" && perms.canEditBasics && (
+              <span className="block mt-1 text-[12px] font-normal text-ink-soft">Only the master can change a fixed date.</span>
+            )}
           </p>
         )}
       </Row>
@@ -174,89 +184,69 @@ export function DetailsCard({
         </div>
       </Row>
 
-      <Row label="Post to">
-        <PlatformPicker
-          value={plats}
-          disabled={!perms.canEditBasics}
-          onChange={(next) => {
-            setPlats(next);
-            save.run(id, { platforms: next });
-          }}
-        />
+      <Row label="Type">
+        {perms.canEditBasics ? (
+          <ShortTypePicker
+            value={type}
+            onChange={(t) => {
+              setType(t);
+              save.run(id, { short_type: t });
+            }}
+          />
+        ) : (
+          <ShortTypeTag type={type} showFiller />
+        )}
       </Row>
 
       <Row label="Final file">
-        {perms.canEditFileLink ? (
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <LinkIcon className="w-4 h-4 text-ink-faint absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                onBlur={() => link.trim() !== (fileLink ?? "") && save.run(id, { file_link: link })}
-                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                placeholder="NAS path, Frame.io or Drive link"
-                maxLength={2000}
-                className="w-full rounded-lg border border-line/15 bg-surface pl-9 pr-3 h-10 text-[13.5px] outline-none focus:ring-2 focus:ring-amber"
-              />
-            </div>
-            {isUrl && (
-              <a
-                href={link.trim()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-line/15 text-ink-soft hover:text-ink hover:border-line/30"
-                aria-label="Open link"
-              >
-                <ExternalIcon className="w-4 h-4" />
-              </a>
-            )}
-            <CopyButton text={link.trim()} toastText="File location copied" />
-          </div>
-        ) : link ? (
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[13.5px] font-mono truncate">{link}</span>
-            {isUrl && (
-              <a href={link} target="_blank" rel="noopener noreferrer" className="text-ink-faint hover:text-ink" aria-label="Open link">
-                <ExternalIcon className="w-4 h-4" />
-              </a>
-            )}
-            <CopyButton text={link} toastText="File location copied" />
-          </div>
-        ) : (
-          <p className="text-[13.5px] text-ink-faint">The editor adds this when the video is ready.</p>
-        )}
+        <FinalFileField id={id} link={fileLink} canEdit={perms.canEditFileLink} />
       </Row>
 
       <Row label="Caption">
         {perms.canEditCaption ? (
-          <textarea
-            value={cap}
-            onChange={(e) => setCap(e.target.value)}
-            onBlur={() => cap.trim() !== (caption ?? "") && save.run(id, { caption: cap })}
-            maxLength={5000}
-            rows={4}
-            placeholder="Description / caption + hashtags"
-            className="w-full rounded-lg border border-line/15 bg-surface px-3 py-2.5 text-[13.5px] outline-none focus:ring-2 focus:ring-amber resize-y"
+          <Switch
+            checked={capOn}
+            onChange={(v) => {
+              setCapOn(v);
+              save.run(id, { caption_enabled: v });
+            }}
+            label="Custom caption"
+            hint="Off uses the automatic caption."
           />
-        ) : cap ? (
-          <p className="text-[13.5px] whitespace-pre-wrap">{cap}</p>
         ) : (
-          <p className="text-[13.5px] text-ink-faint">No caption yet.</p>
+          <p className="text-[13.5px] text-ink-soft">{capOn ? "Custom caption" : "Automatic caption"}</p>
         )}
-        {(cap || perms.canEditCaption) && (
-          <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {plats.map((p) => {
-                const over = cap.trim().length > PLATFORM_META[p].captionLimit;
-                return (
-                  <span key={p} className={`text-[11px] tabular-nums ${over ? "text-red font-bold" : "text-ink-faint"}`} title={`${PLATFORM_META[p].name} limit`}>
-                    {PLATFORM_META[p].short} {cap.trim().length}/{PLATFORM_META[p].captionLimit}
-                  </span>
-                );
-              })}
+        {capOn && (
+          <div className="mt-3">
+            {perms.canEditCaption ? (
+              <textarea
+                aria-label="Caption"
+                value={cap}
+                onChange={(e) => setCap(e.target.value)}
+                onBlur={() => cap.trim() !== (caption ?? "") && save.run(id, { caption: cap })}
+                maxLength={5000}
+                rows={4}
+                placeholder="Caption + hashtags"
+                className="w-full rounded-lg border border-line/15 bg-surface px-3 py-2.5 text-[13.5px] outline-none focus:ring-2 focus:ring-amber resize-y"
+              />
+            ) : cap ? (
+              <p className="text-[13.5px] whitespace-pre-wrap">{cap}</p>
+            ) : (
+              <p className="text-[13.5px] text-ink-soft">No caption written yet.</p>
+            )}
+            <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {platforms.map((p) => {
+                  const over = cap.trim().length > PLATFORM_META[p].captionLimit;
+                  return (
+                    <span key={p} className={`text-[11px] tabular-nums ${over ? "text-red font-bold" : "text-ink-soft"}`} title={`${PLATFORM_META[p].name} limit`}>
+                      {PLATFORM_META[p].short} {cap.trim().length}/{PLATFORM_META[p].captionLimit}
+                    </span>
+                  );
+                })}
+              </div>
+              <CopyButton text={cap.trim()} label="Copy caption" toastText="Caption copied" />
             </div>
-            <CopyButton text={cap.trim()} label="Copy caption" toastText="Caption copied" />
           </div>
         )}
       </Row>

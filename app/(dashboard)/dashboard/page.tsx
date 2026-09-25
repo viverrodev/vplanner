@@ -17,9 +17,8 @@ export default async function DashboardPage() {
             Start your first team
           </h1>
           <p className="text-sm text-ink-soft leading-relaxed mb-7">
-            A team is where your projects, teammates, and roles live —
-            your main channel, for instance. You&rsquo;ll be its owner,
-            with full access to every stage of every project by default.
+            A team holds your projects, people and roles, like your main
+            channel. You&rsquo;ll own it and have full access to everything.
           </p>
           <Link
             href="/teams/new"
@@ -54,7 +53,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-ink-soft leading-relaxed max-w-md">
           This is where project creation, the ideate-through-publish
           pipeline, roles, and the calendar all land. The foundation
-          underneath — teams, roles, permissions, notifications — is
+          underneath. Teams, roles, permissions, notifications. Is
           already built and enforced at the database level; this screen
           is next in line to build on top of it.
         </p>

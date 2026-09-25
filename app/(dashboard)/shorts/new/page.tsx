@@ -8,6 +8,7 @@ import { ArrowLeftIcon } from "@/components/ui/icons";
 import {
   listDayLimits,
   refreshShortQueue,
+  getQueueStart,
   getNextShortSlot,
   getShortSettings,
   listPlannedDates,
@@ -25,15 +26,16 @@ export default async function NewShortPage() {
   const membership = await getMembership(supabase, currentTeam.id);
   const roles = membership?.roles ?? [];
   const master = isMaster(roles);
-  const canCreate = master || roles.includes("scripter");
+  const canCreate = master || roles.includes("publisher");
 
   await refreshShortQueue(currentTeam.id);
-  const [people, planned, settings, nextSlot, limits] = await Promise.all([
+  const [people, planned, settings, nextSlot, limits, queueStart] = await Promise.all([
     master ? listTeamPeople(currentTeam.id) : Promise.resolve([]),
     listPlannedDates(currentTeam.id),
     getShortSettings(currentTeam.id),
     getNextShortSlot(currentTeam.id),
     listDayLimits(currentTeam.id),
+    getQueueStart(currentTeam.id),
   ]);
 
   return (
@@ -55,10 +57,12 @@ export default async function NewShortPage() {
           settings={settings}
           nextSlot={nextSlot}
           limits={limits}
+          queueStart={queueStart}
+          canStartQueue={master}
         />
       ) : (
         <p className="rounded-xl border border-line/10 bg-surface px-5 py-4 text-[13.5px] text-ink-soft">
-          Only the master or a scripter can create shorts. Ask your team&rsquo;s master for the Scripter role if you need it.
+          Only the master or a scheduler can create shorts.
         </p>
       )}
     </div>

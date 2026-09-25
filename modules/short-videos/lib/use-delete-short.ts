@@ -28,13 +28,13 @@ export function useDeleteShort(onDeleted?: () => void) {
         return;
       }
       const dayLabel = formatShortDate(v.day) ?? v.day;
-      toast.success(`#${number} deleted — the next short moved up to fill ${dayLabel}.`, {
+      toast.success(`#${number} deleted. The next short moved up to fill ${dayLabel}.`, {
         action: {
           label: v.keep === 0 ? `Leave ${dayLabel} empty` : `Keep ${dayLabel} at ${v.keep}`,
           onClick: async () => {
             const r = await setShortDayLimit(v.teamId, v.day, v.keep);
             if (r.error !== undefined) toast.error(r.error);
-            else toast.success(v.keep === 0 ? `${dayLabel} left empty — dates updated` : `${dayLabel} now takes ${v.keep} — dates updated`);
+            else toast.success(v.keep === 0 ? `${dayLabel} left empty. Dates updated` : `${dayLabel} now takes ${v.keep}. Dates updated`);
           },
         },
       });

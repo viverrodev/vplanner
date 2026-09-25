@@ -221,8 +221,7 @@ export default async function TeamPage() {
             Short videos
           </h2>
           <p className="text-[12px] text-ink-soft mb-5">
-            How many shorts you post per day and on which days — auto-scheduled shorts are dated from this.
-            Defaults pre-fill the people on every new short.
+            Your daily rhythm, and who works on new shorts by default.
           </p>
           <ShortSettingsForm
             teamId={currentTeam.id}
@@ -239,7 +238,7 @@ export default async function TeamPage() {
           </h2>
           <p className="text-[12px] text-ink-soft mb-4">
             Send someone a request to become this team&rsquo;s owner. Nothing
-            changes until they accept — you stay the owner until then.
+            changes until they accept. You stay the owner until then.
           </p>
           <TransferOwnership
             teamId={currentTeam.id}
@@ -261,7 +260,7 @@ export default async function TeamPage() {
           <div className="mt-5 pt-5 border-t border-red/20">
             <h3 className="text-[12px] font-bold text-red mb-1">Delete team</h3>
             <p className="text-[12px] text-ink-soft mb-3">
-              Permanent — every project, comment, and member goes with it.
+              Permanent. Every project, comment, and member goes with it.
             </p>
             <DeleteTeamButton
               teamId={currentTeam.id}

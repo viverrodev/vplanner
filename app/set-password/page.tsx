@@ -49,7 +49,7 @@ export default function SetPasswordPage() {
     const { data: userData, error: passwordError } = await supabase.auth.updateUser({ password });
     if (passwordError || !userData.user) {
       setPending(false);
-      setError("Couldn't set your password — try again, or ask for a fresh invite.");
+      setError("Couldn't set your password. Try again, or ask for a fresh invite.");
       return;
     }
 

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getTeamsAndCurrent } from "@/lib/teams";
+import { getMembership } from "@/lib/permissions/membership";
+import { isMaster } from "@/lib/permissions/roles";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
@@ -31,6 +33,8 @@ export default async function VideosPage({
   const isTable = view ? view === "table" : savedView === "table";
   const supabase = await createClient();
   const { currentTeam } = await getTeamsAndCurrent(supabase);
+  const createRoles = currentTeam ? (await getMembership(supabase, currentTeam.id))?.roles ?? [] : [];
+  const canCreate = isMaster(createRoles) || createRoles.includes("publisher");
 
   if (!currentTeam) {
     return (
@@ -80,12 +84,14 @@ export default async function VideosPage({
             {currentTeam.name}&rsquo;s video pipeline, ideate through publish.
           </p>
         </div>
+        {canCreate && (
         <Link
           href="/videos/new"
           className="flex-shrink-0 inline-flex items-center rounded-xl bg-amber text-white font-bold px-6 py-3.5 text-[15px] shadow-[0_4px_0_0_rgb(var(--amber)/0.5)] hover:brightness-105 active:translate-y-[2px] active:shadow-none transition-all"
         >
           + New project
         </Link>
+        )}
       </div>
 
       {/* Filters — small, low-key, border-led rather than solid fills — with the view toggle on the same row, opposite side */}
@@ -205,7 +211,7 @@ export default async function VideosPage({
                 </span>
                 <span className="text-[13px] font-semibold truncate">{p.title}</span>
                 <span className="hidden sm:block text-[11.5px] text-ink-soft truncate">
-                  {(p.video_type ?? []).join(" + ") || "—"}
+                  {(p.video_type ?? []).join(" + ") || "None"}
                 </span>
                 <span className="hidden sm:block text-[12px] font-semibold truncate" style={{ color: themeColor }}>
                   {p.theme}

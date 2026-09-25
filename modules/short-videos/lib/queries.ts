@@ -3,7 +3,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { colorForId, displayName } from "@/lib/avatar";
 import type { RoleId } from "@/lib/permissions/roles";
-import type { Platform, ShortStage } from "./constants";
+import { isFrameioLink, type Platform, type ShortStage, type ShortType } from "./constants";
 
 type ProfileRow = {
   username: string | null;
@@ -34,6 +34,10 @@ export type ShortListItem = {
   queuePosition: number;
   reviewer: ShortEditor | null;
   scheduler: ShortEditor | null;
+  shortType: ShortType;
+  captionEnabled: boolean;
+  /** Final file is a Frame.io link (required before "Mark editing done"). */
+  hasFrameio: boolean;
   platforms: Platform[];
   postedPlatforms: Platform[];
   editor: ShortEditor | null;
@@ -61,7 +65,7 @@ const PEOPLE_SELECT =
   `reviewer:team_members!short_videos_reviewer_member_id_fkey${PERSON_EMBED}, ` +
   `scheduler:team_members!short_videos_scheduler_member_id_fkey${PERSON_EMBED}`;
 const LIST_SELECT =
-  "id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, " +
+  "id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, short_type, caption_enabled, " +
   PEOPLE_SELECT +
   ", short_video_posts(platform)";
 
@@ -101,6 +105,9 @@ export async function listShorts(teamId: string): Promise<ShortListItem[]> {
     editor: toEditor(r.editor as RawEditor),
     reviewer: toEditor(r.reviewer as RawEditor),
     scheduler: toEditor(r.scheduler as RawEditor),
+    shortType: ((r.short_type as ShortType) ?? "filler"),
+    captionEnabled: !!r.caption_enabled,
+    hasFrameio: isFrameioLink(r.file_link as string | null),
     hasFileLink: !!r.file_link,
   }));
 }
@@ -140,7 +147,7 @@ export const getShortDetail = cache(async (id: string): Promise<ShortDetail | nu
   const { data } = await supabase
     .from("short_videos")
     .select(
-      "id, team_id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, caption, review_note, created_at, created_by, " +
+      "id, team_id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, short_type, caption_enabled, caption, review_note, created_at, created_by, " +
         "creator:profiles!short_videos_created_by_fkey(username, full_name, email, avatar_url), " +
         PEOPLE_SELECT +
         ", " +
@@ -177,6 +184,9 @@ export const getShortDetail = cache(async (id: string): Promise<ShortDetail | nu
     editor: toEditor(r.editor as RawEditor),
     reviewer: toEditor(r.reviewer as RawEditor),
     scheduler: toEditor(r.scheduler as RawEditor),
+    shortType: ((r.short_type as ShortType) ?? "filler"),
+    captionEnabled: !!r.caption_enabled,
+    hasFrameio: isFrameioLink(r.file_link as string | null),
     hasFileLink: !!r.file_link,
     fileLink: (r.file_link as string | null) ?? null,
     caption: (r.caption as string | null) ?? null,
@@ -255,6 +265,7 @@ export type ShortTeamSettings = {
   perDay: number;
   weekends: boolean;
   rollForward: boolean;
+  defaultType: ShortType;
   timezone: string;
   defaultEditor: string | null;
   defaultReviewer: string | null;
@@ -266,7 +277,7 @@ export async function getShortSettings(teamId: string): Promise<ShortTeamSetting
   const { data } = await supabase
     .from("teams")
     .select(
-      "shorts_per_day, shorts_weekends, shorts_roll_forward, timezone, default_short_editor_member_id, default_short_reviewer_member_id, default_short_scheduler_member_id"
+      "shorts_per_day, shorts_weekends, shorts_roll_forward, default_short_type, timezone, default_short_editor_member_id, default_short_reviewer_member_id, default_short_scheduler_member_id"
     )
     .eq("id", teamId)
     .maybeSingle();
@@ -274,6 +285,7 @@ export async function getShortSettings(teamId: string): Promise<ShortTeamSetting
     perDay: (data?.shorts_per_day as number) ?? 2,
     weekends: (data?.shorts_weekends as boolean) ?? true,
     rollForward: (data?.shorts_roll_forward as boolean) ?? true,
+    defaultType: ((data?.default_short_type as ShortType) ?? "filler"),
     timezone: (data?.timezone as string) ?? "Europe/Bucharest",
     defaultEditor: (data?.default_short_editor_member_id as string | null) ?? null,
     defaultReviewer: (data?.default_short_reviewer_member_id as string | null) ?? null,
@@ -307,4 +319,14 @@ export async function listDayLimits(teamId: string): Promise<Record<string, numb
 export async function refreshShortQueue(teamId: string) {
   const supabase = await createClient();
   await supabase.rpc("refresh_short_queue", { p_team: teamId });
+}
+
+export type QueueStart = { id: string; number: number; date: string } | null;
+
+/** The short that currently starts the queue (only one at a time). */
+export async function getQueueStart(teamId: string): Promise<QueueStart> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("current_queue_start", { p_team: teamId });
+  const row = Array.isArray(data) ? data[0] : null;
+  return row ? { id: row.id as string, number: row.entry_number as number, date: row.planned_date as string } : null;
 }

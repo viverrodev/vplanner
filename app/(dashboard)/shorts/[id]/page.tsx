@@ -9,6 +9,7 @@ import {
   getShortDetail,
   getShortSettings,
   listDayLimits,
+  getQueueStart,
   listPlannedDates,
   listTeamPeople,
 } from "@/modules/short-videos/lib/queries";
@@ -24,6 +25,11 @@ import { WorkflowActions } from "./workflow-actions";
 import { DetailsCard } from "./details-card";
 import { PostingCard } from "./posting-card";
 import { ActivityCard } from "./activity-card";
+import { ReviewCard } from "./review-card";
+import { ChangesCard } from "./changes-card";
+import { PostToCard } from "./post-to-card";
+import { ShortTypeTag } from "@/modules/short-videos/components/short-type";
+import { MobileCollapse } from "@/components/ui/mobile-collapse";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -41,16 +47,27 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
   const roles = membership?.roles ?? [];
   const isAssignedEditor = !!membership && short.editor?.memberId === membership.teamMemberId;
   const isAssignedReviewer = !!membership && short.reviewer?.memberId === membership.teamMemberId;
-  const perms = shortPermissions({ roles, isAssignedEditor, isAssignedReviewer, stage: short.stage });
+  const perms = shortPermissions({
+    roles,
+    isAssignedEditor,
+    isAssignedReviewer,
+    stage: short.stage,
+    scheduleMode: short.scheduleMode,
+  });
 
-  const [people, planned, settings, limits] = await Promise.all([
+  const [people, planned, settings, limits, queueStart] = await Promise.all([
     perms.canAssignPeople ? listTeamPeople(short.teamId) : Promise.resolve([]),
     perms.canEditBasics ? listPlannedDates(short.teamId) : Promise.resolve([]),
     getShortSettings(short.teamId),
     perms.canEditBasics ? listDayLimits(short.teamId) : Promise.resolve({}),
+    perms.canEditBasics ? getQueueStart(short.teamId) : Promise.resolve(null),
   ]);
 
   const currentIndex = SHORT_STAGES.indexOf(short.stage);
+  // On phones, show the thing to act on (review, fixes, posting) first.
+  const actionFirst =
+    short.stage === "review" || short.stage === "ready" || short.stage === "posted" || (short.stage === "editing" && !!short.reviewNote);
+  const lastChanges = short.events.find((e) => e.kind === "stage" && e.fromStage === "review" && e.toStage === "editing") ?? null;
   const overdue = isOverdue(short.plannedDate, short.stage);
   const rel = relativeDay(short.plannedDate);
 
@@ -74,6 +91,7 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-5 text-[13px] text-ink-soft">
         <ShortStagePill stage={short.stage} size="md" />
+        <ShortTypeTag type={short.shortType} />
         {short.plannedDate ? (
           <span className={overdue ? "text-red font-semibold" : ""}>
             {overdue && <AlertIcon className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />}
@@ -87,7 +105,7 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
         <span className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
           {short.scheduleMode === "auto" ? "Auto date" : short.pinKind === "oneoff" ? "Fixed · just this one" : "Fixed · queue starts here"}
         </span>
-        {short.createdBy && <span className="text-ink-faint">Created by {short.createdBy.name}</span>}
+        {short.createdBy && <span className="hidden sm:inline text-ink-faint">Created by {short.createdBy.name}</span>}
       </div>
 
       {/* Stage tracker — same state colors as long videos */}
@@ -135,22 +153,16 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
         hasEditor={!!short.editor}
         editorName={short.editor?.name ?? null}
         reviewerName={short.reviewer?.name ?? null}
+        hasFrameio={short.hasFrameio}
       />
 
-      {short.stage === "editing" && short.reviewNote && (
-        <div className="mb-6 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 max-w-3xl">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-amber mb-1">Changes requested</div>
-          <p className="text-[13.5px] whitespace-pre-wrap">{short.reviewNote}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6">
-        <div className="space-y-6 min-w-0">
-          <section className="rounded-2xl border border-dashed border-line/20 bg-surface/50 px-5 py-4">
+      {/* Phones: one column. When it's time to post, the Posted card comes first. */}
+      <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 sm:gap-6">
+        <div className={`space-y-6 min-w-0 ${actionFirst ? "order-2 lg:order-none" : ""}`}>
+          <section className="hidden sm:block rounded-2xl border border-dashed border-line/20 bg-surface/50 px-5 py-4">
             <div className="text-[11px] font-bold uppercase tracking-wide text-ink-faint mb-1">Script</div>
             <p className="text-[13px] text-ink-soft">
-              The script editor is coming in the next update — writing, highlights, images and DOCX/PDF export,
-              right here on this page.
+              The script editor is coming next: writing, highlights, images and DOCX/PDF export.
             </p>
           </section>
 
@@ -163,26 +175,50 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
             perDay={settings.perDay}
             weekends={settings.weekends}
             limits={limits}
+            queueStart={queueStart}
             editor={short.editor}
             reviewer={short.reviewer}
             scheduler={short.scheduler}
             platforms={short.platforms}
             fileLink={short.fileLink}
             caption={short.caption}
+            captionEnabled={short.captionEnabled}
+            shortType={short.shortType}
             people={people}
             planned={planned}
           />
         </div>
 
-        <div className="space-y-6">
-          <PostingCard
-            id={short.id}
-            platforms={short.platforms}
-            posts={short.posts}
-            canPost={perms.isMaster || roles.includes("publisher")}
-            stageAllowsPosting={short.stage === "ready" || short.stage === "posted"}
-          />
-          <ActivityCard events={short.events} />
+        <div className={`space-y-5 sm:space-y-6 ${actionFirst ? "order-1 lg:order-none" : ""}`}>
+          {/* The right column follows the stage:
+              Review → orange review box · Editing after a review → what to fix
+              · Ready / Posted → Posted · otherwise → Post to. */}
+          {short.stage === "review" && (
+            <ReviewCard
+              id={short.id}
+              number={short.number}
+              link={short.fileLink}
+              canReview={perms.canReview}
+              reviewerName={short.reviewer?.name ?? null}
+            />
+          )}
+          {short.stage === "editing" && short.reviewNote && (
+            <ChangesCard note={short.reviewNote} by={lastChanges?.actor?.name ?? null} at={lastChanges?.createdAt ?? null} />
+          )}
+          {short.stage === "ready" || short.stage === "posted" ? (
+            <PostingCard
+              id={short.id}
+              platforms={short.platforms}
+              posts={short.posts}
+              canPost={perms.isMaster || roles.includes("publisher")}
+              stageAllowsPosting
+            />
+          ) : (
+            <PostToCard id={short.id} platforms={short.platforms} canEdit={perms.canEditBasics} />
+          )}
+          <MobileCollapse label="Activity" count={short.events.length}>
+            <ActivityCard events={short.events} />
+          </MobileCollapse>
         </div>
       </div>
     </div>

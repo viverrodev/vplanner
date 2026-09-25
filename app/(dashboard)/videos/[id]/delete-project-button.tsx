@@ -23,7 +23,7 @@ export function DeleteProjectButton({
     const ok = await confirm({
       title: `Delete "${projectTitle}"?`,
       description:
-        "This permanently removes the project — every note, thumbnail, and attachment along with it. This can't be undone.",
+        "This permanently removes the project. Every note, thumbnail, and attachment along with it. This can't be undone.",
       confirmLabel: "Delete permanently",
       danger: true,
     });

@@ -421,7 +421,7 @@ export default async function ProjectDetailPage({
           ) : (
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wide text-ink-faint mb-2.5">
-                Assigned — {STAGE_LABELS[tab]}
+                Assigned · {STAGE_LABELS[tab]}
               </div>
               <AssigneeRow
                 projectId={id}

@@ -21,6 +21,7 @@ export function ShortRowMenu({
   pinned,
   pinKind,
   locked,
+  queueStart = null,
 }: {
   id: string;
   number: number;
@@ -28,7 +29,9 @@ export function ShortRowMenu({
   pinned: boolean;
   pinKind: "anchor" | "oneoff" | null;
   locked: boolean;
+  queueStart?: { id: string; number: number; date: string } | null;
 }) {
+  const startTaken = !!queueStart && queueStart.id !== id;
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, up: false });
   const btn = useRef<HTMLButtonElement>(null);
@@ -38,15 +41,15 @@ export function ShortRowMenu({
   useMenuKeyboard(open, menu, btn, close);
 
   const move = useAction(moveShortInQueue, {
-    success: (_id, dir) => `#${number} moved ${dir < 0 ? "up" : "down"} — dates updated`,
+    success: (_id, dir) => `#${number} moved ${dir < 0 ? "up" : "down"}. Dates updated`,
   });
   const toAuto = useAction(updateShortDetails, {
     success: (_id, patch) =>
       patch.auto
         ? `#${number} is back on Auto`
         : patch.pin_kind === "oneoff"
-          ? `#${number} is now "just this one" — the queue no longer continues from it`
-          : `#${number} now starts the queue from its date`,
+          ? `#${number} is now "Just this one"`
+          : `#${number} now starts the queue`,
   });
   const del = useDeleteShort();
 
@@ -165,7 +168,7 @@ export function ShortRowMenu({
                     role="menuitem"
                     aria-checked={pinKind === k}
                     className={item}
-                    disabled={busy || pinKind === k}
+                    disabled={busy || pinKind === k || (k === "anchor" && startTaken)}
                     onClick={() => {
                       setOpen(false);
                       toAuto.run(id, { pin_kind: k });
@@ -175,6 +178,11 @@ export function ShortRowMenu({
                     {label}
                   </button>
                 ))}
+                {startTaken && pinKind !== "anchor" && (
+                  <p className="px-3 pb-1 text-[11.5px] text-ink-soft">
+                    #{queueStart!.number} starts the queue. Release it first.
+                  </p>
+                )}
                 <button
                   type="button"
                   role="menuitem"

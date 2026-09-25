@@ -56,3 +56,22 @@ export function postedProgress(platforms: Platform[], postedPlatforms: Platform[
   const done = platforms.filter((p) => postedPlatforms.includes(p)).length;
   return { done, total: platforms.length, complete: platforms.length > 0 && done >= platforms.length };
 }
+
+/** What kind of short it is. Filler is the everyday default (no color). */
+export const SHORT_TYPES = ["filler", "sponsorship", "big"] as const;
+export type ShortType = (typeof SHORT_TYPES)[number];
+
+export const SHORT_TYPE_META: Record<ShortType, { label: string; short: string; color: string | null; hint: string }> = {
+  filler: { label: "Filler", short: "Filler", color: null, hint: "Everyday short" },
+  sponsorship: { label: "Sponsorship", short: "Sponsor", color: "rgb(var(--blue))", hint: "Paid, extra care" },
+  big: { label: "Big", short: "Big", color: "rgb(var(--gold))", hint: "Important one" },
+};
+
+export function isShortType(v: unknown): v is ShortType {
+  return typeof v === "string" && (SHORT_TYPES as readonly string[]).includes(v);
+}
+
+/** Same rule as the database's is_frameio_link(). */
+export function isFrameioLink(link: string | null | undefined) {
+  return !!link && /^https:\/\/([a-z0-9-]+\.)*(frame\.io|f\.io)\/\S+$/i.test(link.trim());
+}

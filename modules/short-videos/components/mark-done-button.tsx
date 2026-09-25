@@ -10,14 +10,17 @@ export function MarkDoneButton({
   shortId,
   number,
   compact = false,
+  disabled = false,
 }: {
   shortId: string;
   number: number;
   compact?: boolean;
+  /** Locked until the final file is a Frame.io link. */
+  disabled?: boolean;
 }) {
   const confirm = useConfirm();
   const submit = useAction(submitShortForReview, {
-    success: `#${number} sent for review — the reviewer has been notified`,
+    success: `#${number} sent for review. The reviewer has been notified`,
   });
 
   async function handleClick(e: React.MouseEvent) {
@@ -35,8 +38,9 @@ export function MarkDoneButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={submit.pending}
-      className={`relative z-10 inline-flex items-center gap-1 rounded-lg bg-amber text-white font-bold disabled:opacity-50 hover:brightness-110 transition-[filter] ${
+      disabled={submit.pending || disabled}
+      title={disabled ? "Add the Frame.io link in Final file first" : undefined}
+      className={`relative z-10 inline-flex items-center gap-1 rounded-lg bg-amber text-white font-bold disabled:opacity-45 disabled:cursor-not-allowed hover:brightness-110 transition-[filter] ${
         compact ? "text-[11px] px-2 py-1" : "text-[13px] px-3.5 h-9"
       }`}
     >

@@ -14,12 +14,16 @@ import {
   listShorts,
   listTeamPeople,
   refreshShortQueue,
+  getQueueStart,
   type ShortListItem,
 } from "@/modules/short-videos/lib/queries";
 import { DayLimitControl } from "@/modules/short-videos/components/day-limit-control";
 import {
   PLATFORMS,
   PLATFORM_META,
+  SHORT_TYPES,
+  SHORT_TYPE_META,
+  isShortType,
   SHORT_STAGES,
   SHORT_STAGE_LABELS,
   isPlatform,
@@ -30,6 +34,8 @@ import { PlatformIcon } from "@/modules/short-videos/components/platform-icon";
 import { EditorCell } from "@/modules/short-videos/components/editor-cell";
 import { ShortRowMenu } from "@/modules/short-videos/components/row-menu";
 import { ScrollToToday } from "@/modules/short-videos/components/scroll-to-today";
+import { FiltersMenu } from "@/modules/short-videos/components/filters-menu";
+import { ShortTypeTag } from "@/modules/short-videos/components/short-type";
 import { SHORTS_VIEW_COOKIE } from "@/modules/short-videos/lib/view-mode";
 import { ShortStagePill } from "@/modules/short-videos/components/stage-pill";
 import { PostedToggles } from "@/modules/short-videos/components/posted-toggles";
@@ -46,6 +52,7 @@ type Params = {
   late?: string;
   platform?: string;
   only?: string;
+  type?: string;
   sort?: string;
   view?: string;
 };
@@ -68,12 +75,13 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
 
   // First visit of a new day: roll unposted Auto shorts forward first.
   await refreshShortQueue(currentTeam.id);
-  const [all, user, settings, people, dayLimits] = await Promise.all([
+  const [all, user, settings, people, dayLimits, queueStart] = await Promise.all([
     listShorts(currentTeam.id),
     getCachedUser(),
     getShortSettings(currentTeam.id),
     master ? listTeamPeople(currentTeam.id) : Promise.resolve([]),
     listDayLimits(currentTeam.id),
+    getQueueStart(currentTeam.id),
   ]);
   const capacityFor = (day: string) =>
     day in dayLimits
@@ -81,8 +89,9 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       : !settings.weekends && [0, 6].includes(new Date(day + "T00:00:00").getDay())
         ? 0
         : settings.perDay;
-  const editors = people.filter((p) => p.roles.includes("editor"));
-  const canCreate = master || roles.includes("scripter");
+  // Editors, plus masters (a master can take on any job).
+  const editors = people.filter((p) => p.roles.includes("editor") || p.roles.includes("master"));
+  const canCreate = master || roles.includes("publisher");
   const canPost = master || roles.includes("publisher");
   const myMemberId = membership?.teamMemberId ?? null;
 
@@ -91,6 +100,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
   const late = params.late === "1";
   const platform = isPlatform(params.platform) ? params.platform : null;
   const only = !!platform && params.only === "1";
+  const typeFilter = isShortType(params.type) ? params.type : null;
   const newest = params.sort === "newest";
   const today = todayISO();
 
@@ -107,7 +117,8 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       (!stageFilter || s.stage === stageFilter) &&
       (!mine || s.editor?.memberId === myMemberId) &&
       (!late || isOverdue(s.plannedDate, s.stage)) &&
-      (!platform || (only ? s.platforms.length === 1 && s.platforms[0] === platform : s.platforms.includes(platform)))
+      (!platform || (only ? s.platforms.length === 1 && s.platforms[0] === platform : s.platforms.includes(platform))) &&
+      (!typeFilter || s.shortType === typeFilter)
   );
   // Default = schedule order (the database sorts by date, then queue
   // position — the same order the numbers follow). "Latest first" = reversed.
@@ -124,6 +135,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       late: late ? "1" : undefined,
       platform: platform ?? undefined,
       only: only ? "1" : undefined,
+      type: typeFilter ?? undefined,
       sort: newest ? "newest" : undefined,
       ...next,
     };
@@ -138,6 +150,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       late: late ? "1" : null,
       platform,
       only: only ? "1" : null,
+      type: typeFilter,
       sort: newest ? "newest" : null,
     }).filter((e): e is [string, string] => !!e[1])
   ).toString();
@@ -190,10 +203,10 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
-        <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex-1 min-w-0 overflow-x-auto no-scrollbar">
-          <div className="flex gap-1 w-max sm:w-auto sm:flex-wrap items-center">
+      {/* One row at every screen size: stage chips, Filters, view toggle. */}
+      <div className="flex items-center gap-2 mb-6">
+        <div className="-ml-4 pl-4 sm:ml-0 sm:pl-0 flex-1 min-w-0 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1 w-max items-center">
             {[{ key: "", label: "All", count: all.length }, ...SHORT_STAGES.map((st) => ({
               key: st,
               label: SHORT_STAGE_LABELS[st],
@@ -206,11 +219,11 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   href={buildHref({ stage: f.key || undefined })}
                   scroll={false}
                   aria-current={active ? "page" : undefined}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 h-9 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
                     active
                       ? "bg-ink text-paper"
                       : f.count === 0
-                        ? "text-ink-faint/70 hover:bg-surface-2 hover:text-ink-soft"
+                        ? "text-ink-faint hover:bg-surface-2 hover:text-ink-soft"
                         : "text-ink-soft hover:bg-surface-2 hover:text-ink"
                   }`}
                 >
@@ -222,82 +235,10 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                 </Link>
               );
             })}
-            <span className="w-px h-5 bg-line/15 mx-1.5" aria-hidden />
-            {[
-              { key: "mine" as const, label: "Assigned to me", on: mine, count: mineCount },
-              { key: "late" as const, label: "Overdue", on: late, count: lateCount },
-            ].map((t) => (
-              <Link
-                key={t.key}
-                href={buildHref({ [t.key]: t.on ? undefined : "1" })}
-                scroll={false}
-                aria-pressed={t.on}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap border transition-colors ${
-                  t.on
-                    ? t.key === "late"
-                      ? "border-red/40 bg-red/10 text-red"
-                      : "border-amber/50 bg-amber/10 text-amber"
-                    : "border-line/15 text-ink-soft hover:text-ink hover:border-line/30"
-                }`}
-              >
-                {t.label}
-                <span className="text-[11px] tabular-nums font-medium opacity-60">{t.count}</span>
-                <LinkPendingIndicator />
-              </Link>
-            ))}
-            <span className="w-px h-5 bg-line/15 mx-1.5" aria-hidden />
-            {PLATFORMS.map((p) => {
-              const on = platform === p;
-              return (
-                <Link
-                  key={p}
-                  href={buildHref({ platform: on ? undefined : p, only: undefined })}
-                  scroll={false}
-                  aria-pressed={on}
-                  title={`Shorts going to ${PLATFORM_META[p].name}`}
-                  className={`inline-flex items-center gap-1.5 rounded-lg pl-1 pr-2.5 h-8 text-[12px] font-semibold whitespace-nowrap border transition-colors ${
-                    on ? "border-ink/40 bg-surface text-ink" : "border-transparent text-ink-soft hover:bg-surface-2"
-                  }`}
-                >
-                  <PlatformIcon platform={p} className={`w-5 h-5 rounded-[5px] ${on ? "" : "opacity-70"}`} />
-                  <span className="tabular-nums text-[11px] text-ink-faint">{platformCounts.get(p)}</span>
-                </Link>
-              );
-            })}
-            {platform && (
-              <Link
-                href={buildHref({ only: only ? undefined : "1" })}
-                scroll={false}
-                aria-pressed={only}
-                className={`inline-flex items-center rounded-lg px-2.5 h-8 text-[12px] font-semibold whitespace-nowrap border transition-colors ${
-                  only ? "border-amber/50 bg-amber/10 text-amber" : "border-line/15 text-ink-soft hover:text-ink"
-                }`}
-              >
-                Only {PLATFORM_META[platform].name}
-              </Link>
-            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="flex items-center rounded-lg border border-line/15 p-0.5">
-          {([
-            ["schedule", "Schedule"],
-            ["newest", "Latest first"],
-          ] as const).map(([key, label]) => (
-            <Link
-              key={key}
-              href={buildHref({ sort: key === "newest" ? "newest" : undefined })}
-              scroll={false}
-              className={`px-2.5 h-8 inline-flex items-center rounded-md text-[12px] font-semibold transition-colors ${
-                (key === "newest") === newest ? "bg-surface-2 text-ink" : "text-ink-faint hover:text-ink"
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-        <div className="flex items-center rounded-lg border border-line/15 p-0.5 flex-shrink-0">
+        <div className="flex-shrink-0 flex items-center rounded-lg border border-line/15 p-0.5">
           {(["grid", "table"] as const).map((mode) => (
             <form key={mode} action={setShortsViewMode}>
               <input type="hidden" name="mode" value={mode} />
@@ -314,7 +255,78 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
             </form>
           ))}
         </div>
-        </div>
+      </div>
+
+      <div className="-mt-3 mb-6">
+        <FiltersMenu
+          sections={[
+            {
+              title: "Show",
+              items: [
+                { key: "mine", kind: "check", label: "Assigned to me", count: mineCount, active: mine, href: buildHref({ mine: mine ? undefined : "1" }) },
+                { key: "late", kind: "check", label: "Overdue", count: lateCount, active: late, href: buildHref({ late: late ? undefined : "1" }) },
+              ],
+            },
+            {
+              title: "Platform",
+              items: [
+                { key: "any", kind: "radio", label: "Any platform", active: !platform, href: buildHref({ platform: undefined, only: undefined }) },
+                ...PLATFORMS.map((p) => ({
+                  key: p,
+                  kind: "radio" as const,
+                  label: PLATFORM_META[p].name,
+                  platform: p,
+                  count: platformCounts.get(p),
+                  active: platform === p,
+                  href: buildHref({ platform: platform === p ? undefined : p, only: undefined }),
+                })),
+                ...(platform
+                  ? [{
+                      key: "only",
+                      kind: "check" as const,
+                      label: `Only ${PLATFORM_META[platform].name}`,
+                      active: only,
+                      href: buildHref({ only: only ? undefined : "1" }),
+                    }]
+                  : []),
+              ],
+            },
+            {
+              title: "Type",
+              items: [
+                { key: "type-any", kind: "radio", label: "Any type", active: !typeFilter, href: buildHref({ type: undefined }) },
+                ...SHORT_TYPES.map((t) => ({
+                  key: `type-${t}`,
+                  kind: "radio" as const,
+                  label: SHORT_TYPE_META[t].label,
+                  count: all.filter((x) => x.shortType === t).length,
+                  active: typeFilter === t,
+                  href: buildHref({ type: typeFilter === t ? undefined : t }),
+                })),
+              ],
+            },
+            {
+              title: "Order",
+              items: [
+                { key: "schedule", kind: "radio", label: "Schedule", active: !newest, href: buildHref({ sort: undefined }) },
+                { key: "newest", kind: "radio", label: "Latest first", active: newest, href: buildHref({ sort: "newest" }) },
+              ],
+            },
+          ]}
+          chips={[
+            ...(mine ? [{ key: "mine", label: "Assigned to me", clearHref: buildHref({ mine: undefined }) }] : []),
+            ...(late ? [{ key: "late", label: "Overdue", clearHref: buildHref({ late: undefined }) }] : []),
+            ...(platform
+              ? [{
+                  key: "platform",
+                  label: only ? `Only ${PLATFORM_META[platform].name}` : PLATFORM_META[platform].name,
+                  clearHref: buildHref({ platform: undefined, only: undefined }),
+                }]
+              : []),
+            ...(typeFilter ? [{ key: "type", label: SHORT_TYPE_META[typeFilter].label, clearHref: buildHref({ type: undefined }) }] : []),
+            ...(newest ? [{ key: "sort", label: "Latest first", clearHref: buildHref({ sort: undefined }) }] : []),
+          ]}
+        />
       </div>
 
       {!newest && firstUpcoming && <ScrollToToday />}
@@ -327,8 +339,8 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
           <p className="text-[13px] text-ink-faint mb-5">
             {all.length === 0
               ? canCreate
-                ? "Create the first one — give it a title and plan a date."
-                : "When the master or a scripter adds shorts, they'll show up here."
+                ? "Create the first one. Give it a title and plan a date."
+                : "When the master or a scheduler adds shorts, they'll show up here."
               : "Try another stage, or clear the filters."}
           </p>
           {all.length === 0 && canCreate ? (
@@ -343,10 +355,10 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
         </div>
       ) : isTable ? (
         <div className="rounded-xl border border-line/10 bg-surface overflow-hidden">
-          <div className="hidden md:grid grid-cols-[52px_minmax(0,1fr)_150px_170px_140px_150px_36px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+          <div className="hidden md:grid md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_36px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_36px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
             <span className="text-right">#</span>
             <span>Title</span>
-            <span>Planned</span>
+            <span className="hidden xl:block">Planned</span>
             <span>Editor</span>
             <span>Status</span>
             <span>Posted</span>
@@ -402,13 +414,31 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                           isException={s.plannedDate in dayLimits}
                           teamDefault={settings.perDay}
                           canEdit={master && s.plannedDate >= today}
+                          dayShorts={shorts
+                            .filter((x) => x.plannedDate === s.plannedDate)
+                            .map((x) => ({
+                              id: x.id,
+                              number: x.number,
+                              title: x.title,
+                              locked: x.stage === "posted" || x.postedPlatforms.length > 0,
+                              fixed: x.scheduleMode === "pinned",
+                            }))}
                         />
                       </span>
                     )}
                   </div>
                 )}
               <div
-                className="relative grid grid-cols-[40px_minmax(0,1fr)_auto] md:grid-cols-[52px_minmax(0,1fr)_150px_170px_140px_150px_36px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
+                className="relative grid grid-cols-[36px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_36px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_36px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
+                style={
+                  SHORT_TYPE_META[s.shortType].color
+                    ? {
+                        // Sponsorship / Big: a colored edge + a faint tint, readable at a glance.
+                        boxShadow: `inset 4px 0 0 ${SHORT_TYPE_META[s.shortType].color}`,
+                        background: `color-mix(in srgb, ${SHORT_TYPE_META[s.shortType].color} 8%, transparent)`,
+                      }
+                    : undefined
+                }
               >
                 <span className="text-right font-mono text-[12px] text-ink-faint tabular-nums self-start md:self-center pt-0.5 md:pt-0">
                   {s.number}
@@ -418,22 +448,28 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   {/* The title link stretches over the whole row; inline controls sit above it. */}
                   <Link
                     href={`/shorts/${s.id}`}
-                    className="block text-[13.5px] font-semibold truncate after:absolute after:inset-0 after:content-['']"
+                    className="block min-w-0 text-[13.5px] font-semibold truncate after:absolute after:inset-0 after:content-['']"
                   >
                     {s.title}
                   </Link>
-                  <div className="md:hidden flex items-center gap-2 mt-1 flex-wrap text-[11.5px]">
-                    <ShortStagePill stage={s.stage} />
+                  {/* Second line: type first (so Sponsor / Big read instantly), then the rest. */}
+                  <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap text-[11.5px] text-ink-soft">
+                    <ShortTypeTag type={s.shortType} />
+                    <span className="md:hidden">
+                      <ShortStagePill stage={s.stage} />
+                    </span>
                     {s.plannedDate && (
-                      <span className={overdue ? "text-red font-semibold" : "text-ink-soft"}>
-                        {formatShortDate(s.plannedDate)}
+                      <span className={`xl:hidden ${overdue ? "text-red font-semibold" : ""}`}>
+                        <span className="md:hidden">{formatShortDate(s.plannedDate)} · </span>
+                        {s.scheduleMode === "auto" ? "Auto" : s.pinKind === "oneoff" ? "One-off" : "Fixed"}
+                        {overdue ? " · overdue" : ""}
                       </span>
                     )}
-                    {s.editor && <span className="text-ink-faint truncate">· {s.editor.name}</span>}
+                    {s.editor && <span className="md:hidden truncate">· {s.editor.name}</span>}
                   </div>
                 </div>
 
-                <div className="hidden md:block text-[12px]">
+                <div className="hidden xl:block text-[12px]">
                   {s.plannedDate ? (
                     <>
                       <div className={`font-semibold ${overdue ? "text-red" : "text-ink"}`}>
@@ -458,7 +494,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                       )}
                     </>
                   ) : (
-                    <span className="text-ink-faint">—</span>
+                    <span className="text-ink-faint">Not set</span>
                   )}
                 </div>
 
@@ -468,7 +504,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
 
                 <div className="hidden md:block">
                   {canMarkDone ? (
-                    <MarkDoneButton shortId={s.id} number={s.number} compact />
+                    <MarkDoneButton shortId={s.id} number={s.number} compact disabled={!s.hasFrameio} />
                   ) : (
                     <ShortStagePill stage={s.stage} />
                   )}
@@ -476,22 +512,36 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
 
                 <div className="relative z-10 justify-self-end md:justify-self-start flex flex-col items-end md:items-start gap-1">
                   <div className="flex items-center gap-1">
-                    <PostedToggles shortId={s.id} platforms={s.platforms} posted={s.postedPlatforms} canToggle={canToggle} />
+                    <span className="hidden md:inline-flex">
+                      <PostedToggles shortId={s.id} platforms={s.platforms} posted={s.postedPlatforms} canToggle={canToggle} />
+                    </span>
+                    {/* Phones: just the count; tick platforms on the short's page. */}
+                    <span
+                      className={`md:hidden text-[11.5px] font-bold tabular-nums rounded-full px-2 py-0.5 ${
+                        s.postedPlatforms.length >= s.platforms.length
+                          ? "bg-green/15 text-green"
+                          : s.postedPlatforms.length
+                            ? "bg-amber/15 text-amber"
+                            : "bg-surface-2 text-ink-soft"
+                      }`}
+                    >
+                      {s.platforms.filter((p) => s.postedPlatforms.includes(p)).length}/{s.platforms.length}
+                    </span>
                     {master && (
                       <span className="md:hidden">
-                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} />
+                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} />
                       </span>
                     )}
                   </div>
                   {canMarkDone && (
                     <span className="md:hidden">
-                      <MarkDoneButton shortId={s.id} number={s.number} compact />
+                      <MarkDoneButton shortId={s.id} number={s.number} compact disabled={!s.hasFrameio} />
                     </span>
                   )}
                 </div>
                 <div className="hidden md:flex justify-end">
                   {master && (
-                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} />
+                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} />
                   )}
                 </div>
               </div>
@@ -508,9 +558,17 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
               <div
                 key={s.id}
                 className="relative rounded-2xl border-2 border-line/10 bg-surface p-4 flex flex-col gap-3 hover:border-amber hover:shadow-[0_8px_24px_-8px_rgb(var(--amber)/0.35)] hover:-translate-y-0.5 transition-all"
+                style={
+                  SHORT_TYPE_META[s.shortType].color
+                    ? { boxShadow: `inset 0 3px 0 ${SHORT_TYPE_META[s.shortType].color}` }
+                    : undefined
+                }
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[12px] font-bold text-ink-faint tabular-nums">#{s.number}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-[12px] font-bold text-ink-faint tabular-nums">#{s.number}</span>
+                    <ShortTypeTag type={s.shortType} />
+                  </span>
                   <ShortStagePill stage={s.stage} />
                 </div>
                 <Link
@@ -543,7 +601,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                 </div>
                 {canMarkDone && (
                   <div className="relative z-10">
-                    <MarkDoneButton shortId={s.id} number={s.number} compact />
+                    <MarkDoneButton shortId={s.id} number={s.number} compact disabled={!s.hasFrameio} />
                   </div>
                 )}
               </div>
@@ -555,7 +613,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       {user && all.length > 0 && (
         <p className="mt-4 text-[11.5px] text-ink-faint">
           {canPost
-            ? "Tip: click a platform icon to mark it posted — colored means live."
+            ? "Tip: click a platform icon to mark it posted. Colored means live."
             : "Colored platform icons are where a short is already live."}
         </p>
       )}

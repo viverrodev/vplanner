@@ -10,6 +10,8 @@ import {
   PLATFORMS,
   isPlatform,
   isShortStage,
+  isShortType,
+  type ShortType,
   type Platform,
   type ShortStage,
 } from "@/modules/short-videos/lib/constants";
@@ -25,8 +27,14 @@ type Result<T = object> = ({ error?: undefined } & T) | { error: string };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Database messages use dashes in places; show plain sentences instead. */
+function plain(message: string) {
+  return message.replace(/\s+\u2014\s+/g, ". ").replace(/\. ([a-z])/g, (_m, c: string) => `. ${c.toUpperCase()}`);
+}
+
 function friendlyDbError(error: { code?: string; message: string } | null, fallback: string) {
   if (!error) return fallback;
+  error = { ...error, message: plain(error.message) };
   // Our own guard/constraint messages are written for people — pass them on.
   if (error.code === "42501" || error.code === "23514") {
     if (!error.message.startsWith("new row violates") && !error.message.includes("violates check constraint")) {
@@ -123,9 +131,12 @@ export async function createShort(input: {
   schedulerMemberId: string | null;
   platforms: Platform[];
   caption: string;
+  /** Leave out to use the team default. */
+  shortType?: ShortType;
+  captionEnabled?: boolean;
 }): Promise<Result<{ id: string; plannedDate: string | null; number: number }>> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const { currentTeam } = await getTeamsAndCurrent(supabase);
   if (!currentTeam) return { error: "Create a team first." };
@@ -137,7 +148,9 @@ export async function createShort(input: {
   const plannedDate = input.plannedDate && DATE_RE.test(input.plannedDate) ? input.plannedDate : null;
   const platforms = Array.from(new Set((input.platforms ?? []).filter(isPlatform)));
   if (platforms.length === 0) return { error: "Pick at least one platform." };
-  const caption = String(input.caption ?? "").trim().slice(0, 5000) || null;
+  const captionEnabled = !!input.captionEnabled;
+  const caption = captionEnabled ? String(input.caption ?? "").trim().slice(0, 5000) || null : null;
+  const shortType = isShortType(input.shortType) ? input.shortType : undefined;
 
   const [membership, settings] = await Promise.all([
     getMembership(supabase, currentTeam.id),
@@ -150,8 +163,8 @@ export async function createShort(input: {
   ]);
   const roles = membership?.roles ?? [];
   const master = isMaster(roles);
-  if (!master && !roles.includes("scripter")) {
-    return { error: "Only the master or a scripter can create shorts." };
+  if (!master && !roles.includes("publisher")) {
+    return { error: "Only the master or a scheduler can create shorts." };
   }
 
   // Masters choose (the form starts from the team defaults); anyone else
@@ -170,19 +183,22 @@ export async function createShort(input: {
       team_id: currentTeam.id,
       title,
       planned_date: plannedDate,
-      pin_kind: plannedDate ? (input.pinKind === "oneoff" ? "oneoff" : "anchor") : null,
+      // Only a master can make a new short start the queue.
+      pin_kind: plannedDate ? (master && input.pinKind !== "oneoff" ? "anchor" : "oneoff") : null,
       editor_member_id: people.editor,
       reviewer_member_id: people.reviewer,
       scheduler_member_id: people.scheduler,
       platforms,
       caption,
+      caption_enabled: captionEnabled,
+      ...(shortType ? { short_type: shortType } : {}),
       created_by: user.id,
     })
     .select("id, entry_number, title")
     .single();
 
   if (error || !data) {
-    return { error: friendlyDbError(error, "Couldn't create the short — try again.") };
+    return { error: friendlyDbError(error, "Couldn't create the short. Try again.") };
   }
 
   // The queue assigns Auto dates right after the insert — read it back.
@@ -218,11 +234,13 @@ export async function updateShortDetails(
     pin_kind?: "anchor" | "oneoff";
     platforms?: Platform[];
     caption?: string | null;
+    caption_enabled?: boolean;
+    short_type?: ShortType;
     file_link?: string | null;
   }
 ): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const update: Record<string, unknown> = {};
   if (patch.title !== undefined) {
@@ -254,6 +272,11 @@ export async function updateShortDetails(
     if (c.length > 5000) return { error: "Keep the caption under 5,000 characters." };
     update.caption = c || null;
   }
+  if (patch.caption_enabled !== undefined) update.caption_enabled = !!patch.caption_enabled;
+  if (patch.short_type !== undefined) {
+    if (!isShortType(patch.short_type)) return { error: "Unknown short type." };
+    update.short_type = patch.short_type;
+  }
   if (patch.file_link !== undefined) {
     const f = (patch.file_link ?? "").trim();
     if (f.length > 2000) return { error: "That link is too long." };
@@ -262,7 +285,7 @@ export async function updateShortDetails(
   if (Object.keys(update).length === 0) return {};
 
   const { data, error } = await supabase.from("short_videos").update(update).eq("id", id).select("id");
-  if (error) return { error: friendlyDbError(error, "Couldn't save — try again.") };
+  if (error) return { error: friendlyDbError(error, "Couldn't save. Try again.") };
   if (!data || data.length === 0) return { error: "Short not found." };
 
   revalidateShort(id);
@@ -283,7 +306,7 @@ const PERSON_COLUMN: Record<PersonRole, "editor_member_id" | "reviewer_member_id
 /** Master: set who edits / reviews / posts a short. Notifies the new person. */
 export async function assignShortPerson(id: string, role: PersonRole, memberId: string | null): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   if (!(role in PERSON_COLUMN)) return { error: "Unknown role." };
 
   const short = await loadShort(supabase, id);
@@ -292,7 +315,7 @@ export async function assignShortPerson(id: string, role: PersonRole, memberId: 
   if ((short[column] ?? null) === (memberId ?? null)) return {};
 
   const { error } = await supabase.from("short_videos").update({ [column]: memberId }).eq("id", id);
-  if (error) return { error: friendlyDbError(error, "Couldn't change that — try again.") };
+  if (error) return { error: friendlyDbError(error, "Couldn't change that. Try again.") };
 
   if (memberId) {
     const recipient = await editorUserId(supabase, memberId);
@@ -300,11 +323,11 @@ export async function assignShortPerson(id: string, role: PersonRole, memberId: 
     const ref = `#${short.entry_number} "${short.title}"`;
     const now =
       role === "editor" && short.stage === "editing"
-        ? " — it's ready to edit."
+        ? ". It's ready to edit."
         : role === "reviewer" && short.stage === "review"
-          ? " — it's waiting for your review."
+          ? ". It's waiting for your review."
           : role === "scheduler" && short.stage === "ready"
-            ? " — it's ready to post."
+            ? ". It's ready to post."
             : ".";
     await notifyMany([recipient], user.id, (recipient_id) => ({
       recipient_id,
@@ -332,11 +355,11 @@ export async function assignShortEditor(id: string, memberId: string | null): Pr
 /** Master: move a queued short one slot up (-1) or down (+1); dates recalculate. */
 export async function moveShortInQueue(id: string, direction: -1 | 1): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   const { error } = await supabase.rpc("move_short", { p_short: id, p_direction: direction < 0 ? -1 : 1 });
   if (error) {
     const own = error.code === "42501" || error.code === "23514" || error.code === "P0002";
-    return { error: own ? error.message : "Couldn't move it — try again." };
+    return { error: own ? plain(error.message) : "Couldn't move it. Try again." };
   }
   revalidateShort(id);
   return {};
@@ -362,14 +385,14 @@ async function setStage(
     .eq("id", id)
     .in("stage", fromList)
     .select("id");
-  if (error) return { error: friendlyDbError(error, "Couldn't update the short — try again.") };
-  if (!data || data.length === 0) return { error: "This short changed in the meantime — refresh and try again." };
+  if (error) return { error: friendlyDbError(error, "Couldn't update the short. Try again.") };
+  if (!data || data.length === 0) return { error: "This short changed in the meantime. Refresh and try again." };
   return {};
 }
 
 export async function sendShortToEditing(id: string): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const short = await loadShort(supabase, id);
   if (!short) return { error: "Short not found." };
@@ -394,7 +417,7 @@ export async function sendShortToEditing(id: string): Promise<Result> {
 
 export async function submitShortForReview(id: string): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const short = await loadShort(supabase, id);
   if (!short) return { error: "Short not found." };
@@ -413,7 +436,7 @@ export async function submitShortForReview(id: string): Promise<Result> {
     short_id: id,
     kind: "short_review_ready",
     metadata: { actor, ...shortMeta(short) },
-    body: `${actor.name} finished editing #${short.entry_number} "${short.title}" — ready for your review.`,
+    body: `${actor.name} finished editing #${short.entry_number} "${short.title}". Ready for your review.`,
   }));
 
   revalidateShort(id);
@@ -426,7 +449,7 @@ export async function reviewShort(
   note?: string
 ): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const short = await loadShort(supabase, id);
   if (!short) return { error: "Short not found." };
@@ -493,7 +516,7 @@ export async function reviewShort(
 /** Master's manual override, e.g. to correct a mistake. */
 export async function moveShortStage(id: string, to: ShortStage): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   if (!isShortStage(to) || to === "posted") {
     return { error: "Posted is set automatically once every platform is marked posted." };
   }
@@ -521,14 +544,14 @@ export async function setShortPlatformPosted(
   posted: boolean
 ): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   if (!isPlatform(platform)) return { error: "Unknown platform." };
 
   if (posted) {
     const { error } = await supabase.from("short_video_posts").insert({ short_id: id, platform });
     // Already marked (double click / another tab) — that's the goal anyway.
     if (error && error.code !== "23505") {
-      return { error: friendlyDbError(error, "Couldn't mark it posted — only the master or a scheduler can.") };
+      return { error: friendlyDbError(error, "Couldn't mark it posted. Only the master or a scheduler can.") };
     }
   } else {
     const { error } = await supabase
@@ -536,7 +559,7 @@ export async function setShortPlatformPosted(
       .delete()
       .eq("short_id", id)
       .eq("platform", platform);
-    if (error) return { error: friendlyDbError(error, "Couldn't update — only the master or a scheduler can.") };
+    if (error) return { error: friendlyDbError(error, "Couldn't update. Only the master or a scheduler can.") };
   }
 
   revalidateShort(id);
@@ -545,7 +568,7 @@ export async function setShortPlatformPosted(
 
 export async function setShortPostUrl(id: string, platform: Platform, url: string | null): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   if (!isPlatform(platform)) return { error: "Unknown platform." };
 
   const clean = (url ?? "").trim();
@@ -558,7 +581,7 @@ export async function setShortPostUrl(id: string, platform: Platform, url: strin
     .eq("short_id", id)
     .eq("platform", platform)
     .select("short_id");
-  if (error) return { error: friendlyDbError(error, "Couldn't save the link — try again.") };
+  if (error) return { error: friendlyDbError(error, "Couldn't save the link. Try again.") };
   if (!data || data.length === 0) return { error: "Mark it posted first." };
 
   revalidateShort(id);
@@ -573,7 +596,7 @@ export async function deleteShort(
   id: string
 ): Promise<Result<{ vacated?: { teamId: string; day: string; keep: number } }>> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   // Note the day it leaves (and how many stay there) BEFORE deleting, so
   // the toast can offer "keep this day at N" instead of pulling the next
@@ -596,7 +619,7 @@ export async function deleteShort(
   }
 
   const { data, error } = await supabase.from("short_videos").delete().eq("id", id).select("id");
-  if (error) return { error: friendlyDbError(error, "Couldn't delete — try again.") };
+  if (error) return { error: friendlyDbError(error, "Couldn't delete. Try again.") };
   if (!data || data.length === 0) return { error: "Only the master can delete shorts." };
 
   let vacated: { teamId: string; day: string; keep: number } | undefined;
@@ -613,22 +636,40 @@ export async function deleteShort(
 // Day exceptions (master)
 // ---------------------------------------------------------------------------
 
-/** Set how many shorts a day takes (0–10); null = back to the team default. */
-export async function setShortDayLimit(teamId: string, day: string, limit: number | null): Promise<Result> {
+/**
+ * Set how many shorts a day takes (0–10); null = back to the team default.
+ * `keep` = which of that day's shorts stay when the day gets fewer slots.
+ */
+export async function setShortDayLimit(
+  teamId: string,
+  day: string,
+  limit: number | null,
+  keep?: string[]
+): Promise<Result> {
   const { supabase, user } = await requireUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
   if (!DATE_RE.test(day)) return { error: "That date isn't valid." };
 
   if (limit === null) {
     const { error } = await supabase.from("team_day_limits").delete().eq("team_id", teamId).eq("day", day);
-    if (error) return { error: friendlyDbError(error, "Couldn't reset that day — only the master can.") };
+    if (error) return { error: friendlyDbError(error, "Couldn't reset that day. Only the master can.") };
   } else {
     const n = Math.round(Number(limit));
-    if (!Number.isFinite(n) || n < 0 || n > 10) return { error: "A day can take 0–10 shorts." };
-    const { error } = await supabase
-      .from("team_day_limits")
-      .upsert({ team_id: teamId, day, max_shorts: n, updated_by: user.id, updated_at: new Date().toISOString() });
-    if (error) return { error: friendlyDbError(error, "Couldn't change that day — only the master can.") };
+    if (!Number.isFinite(n) || n < 0 || n > 10) return { error: "A day can take 0 to 10 shorts." };
+    if (keep) {
+      const { error } = await supabase.rpc("set_day_limit_keeping", {
+        p_team: teamId,
+        p_day: day,
+        p_limit: n,
+        p_keep: keep,
+      });
+      if (error) return { error: friendlyDbError(error, "Couldn't change that day. Try again.") };
+    } else {
+      const { error } = await supabase
+        .from("team_day_limits")
+        .upsert({ team_id: teamId, day, max_shorts: n, updated_by: user.id, updated_at: new Date().toISOString() });
+      if (error) return { error: friendlyDbError(error, "Couldn't change that day. Only the master can.") };
+    }
   }
 
   revalidatePath("/shorts");

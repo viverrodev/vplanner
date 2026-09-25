@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { setShortDayLimit } from "@/app/(dashboard)/shorts/actions";
+import { KeepShortsDialog, type DayShort } from "./keep-shorts-dialog";
 import { useAction } from "@/lib/hooks/use-action";
 import { Select } from "@/components/ui/select";
 import { formatShortDate } from "../lib/dates";
@@ -18,6 +20,7 @@ export function DayLimitControl({
   isException,
   teamDefault,
   canEdit,
+  dayShorts = [],
 }: {
   teamId: string;
   day: string;
@@ -26,11 +29,14 @@ export function DayLimitControl({
   isException: boolean;
   teamDefault: number;
   canEdit: boolean;
+  /** The shorts on this day, so you can choose which stay when lowering it. */
+  dayShorts?: DayShort[];
 }) {
+  const [asking, setAsking] = useState<number | null>(null);
   const label = formatShortDate(day) ?? day;
-  const save = useAction(setShortDayLimit, {
+  const save = useAction<Parameters<typeof setShortDayLimit>, Awaited<ReturnType<typeof setShortDayLimit>>>(setShortDayLimit, {
     success: (_t, _d, n) =>
-      n === null ? `${label} is back to the team default — dates updated` : `${label} now takes ${n} — dates updated`,
+      n === null ? `${label} is back to the team default. Dates updated.` : `${label} now takes ${n}. Dates updated.`,
   });
 
   const face = (
@@ -43,7 +49,7 @@ export function DayLimitControl({
   if (!canEdit) return face;
 
   const options = [
-    { value: "default", label: `Team default (${teamDefault})`, hint: "Remove the exception" },
+    { value: "default", label: `Team default (${teamDefault})`, hint: "Removes the exception" },
     { value: "0", label: "No shorts this day" },
     ...Array.from({ length: 10 }, (_, i) => ({
       value: String(i + 1),
@@ -51,19 +57,40 @@ export function DayLimitControl({
     })),
   ];
 
+  function choose(v: string | null) {
+    if (!v) return;
+    if (v === "default") return save.run(teamId, day, null);
+    const n = Number(v);
+    // Fewer slots than shorts on the day: ask which ones stay.
+    if (n < dayShorts.length) return setAsking(n);
+    save.run(teamId, day, n);
+  }
+
   return (
+    <>
+    {asking !== null && (
+      <KeepShortsDialog
+        dayLabel={label}
+        limit={asking}
+        shorts={dayShorts}
+        onCancel={() => setAsking(null)}
+        onConfirm={(keep) => {
+          const n = asking;
+          setAsking(null);
+          save.run(teamId, day, n, keep);
+        }}
+      />
+    )}
     <Select
       variant="inline"
       value={isException ? String(limit) : "default"}
-      onChange={(v) => {
-        if (!v) return;
-        save.run(teamId, day, v === "default" ? null : Number(v));
-      }}
+      onChange={choose}
       options={options}
       disabled={save.pending}
       ariaLabel={`How many shorts on ${label}`}
       renderValue={() => face}
       menuMinWidth={210}
     />
+    </>
   );
 }

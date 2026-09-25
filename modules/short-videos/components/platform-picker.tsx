@@ -31,7 +31,7 @@ export function PlatformPicker({
             disabled={disabled}
             onClick={() => toggle(p)}
             aria-pressed={on}
-            className={`inline-flex items-center gap-2 rounded-xl border pl-1.5 pr-3 h-10 text-[13px] font-semibold transition-all disabled:cursor-default ${
+            className={`inline-flex items-center gap-2 rounded-xl border pl-1.5 pr-3 h-10 text-[13px] font-semibold transition-all disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber ${
               on ? "border-line/30 bg-surface text-ink" : "border-line/10 text-ink-faint"
             } ${!disabled ? "hover:border-line/40" : ""}`}
           >

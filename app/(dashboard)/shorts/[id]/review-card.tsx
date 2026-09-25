@@ -1,0 +1,136 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { reviewShort } from "../actions";
+import { useAction } from "@/lib/hooks/use-action";
+import { useConfirm } from "@/components/ui/confirm-provider";
+import { CheckIcon, ExternalIcon } from "@/components/ui/icons";
+
+/**
+ * In review: the Frame.io link first (one click to open), then Approve or
+ * Needs changes. Orange so it stands out as the thing to do right now.
+ */
+export function ReviewCard({
+  id,
+  number,
+  link,
+  canReview,
+  reviewerName,
+}: {
+  id: string;
+  number: number;
+  link: string | null;
+  canReview: boolean;
+  reviewerName: string | null;
+}) {
+  const confirm = useConfirm();
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState("");
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+
+  const review = useAction<Parameters<typeof reviewShort>, Awaited<ReturnType<typeof reviewShort>>>(reviewShort, {
+    success: (_id, decision) => (decision === "approve" ? "Approved. The scheduler has been notified." : "Sent back with your note."),
+    onSuccess: () => {
+      setAsking(false);
+      setNote("");
+    },
+  });
+
+  useEffect(() => {
+    if (asking) noteRef.current?.focus();
+  }, [asking]);
+
+  async function approve() {
+    const ok = await confirm({
+      title: `Approve #${number}?`,
+      description: "It moves to Ready to post. The editor and scheduler are notified.",
+      confirmLabel: "Approve",
+    });
+    if (ok) review.run(id, "approve");
+  }
+
+  return (
+    <section className="rounded-2xl border-2 border-amber bg-amber/10 p-5">
+      <h2 className="text-[12px] font-bold uppercase tracking-wide text-amber mb-3">In review</h2>
+
+      {link ? (
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-3 rounded-xl bg-surface border border-line/15 px-3.5 py-3 mb-4 hover:border-green transition-colors"
+        >
+          <span className="w-9 h-9 rounded-lg bg-green text-white flex items-center justify-center flex-shrink-0">
+            <ExternalIcon className="w-4 h-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13.5px] font-bold text-ink">Open in Frame.io</span>
+            <span className="block text-[11.5px] text-ink-soft truncate">{link.replace(/^https:\/\//, "")}</span>
+          </span>
+        </a>
+      ) : (
+        <p className="text-[13px] text-ink mb-4">No Frame.io link yet.</p>
+      )}
+
+      {!canReview ? (
+        <p className="text-[13px] text-ink">
+          {reviewerName ? `Waiting for ${reviewerName} to review.` : "Waiting for the master to review."}
+        </p>
+      ) : asking ? (
+        <div>
+          <label htmlFor="changes-note" className="block text-[13px] font-bold text-ink mb-1.5">
+            What needs changing?
+          </label>
+          <textarea
+            id="changes-note"
+            ref={noteRef}
+            value={note}
+            maxLength={2000}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && note.trim()) review.run(id, "changes", note);
+              if (e.key === "Escape") setAsking(false);
+            }}
+            rows={4}
+            placeholder="e.g. Cut the first 2 seconds. Captions are off at 0:14."
+            className="w-full rounded-lg border border-amber/50 bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:ring-2 focus:ring-amber resize-y"
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => review.run(id, "changes", note)}
+              disabled={review.pending || !note.trim()}
+              className="rounded-lg bg-amber text-white font-bold px-3.5 h-9 text-[13px] disabled:opacity-45"
+            >
+              {review.pending ? "Sending…" : "Send to the editor"}
+            </button>
+            <button type="button" onClick={() => setAsking(false)} className="rounded-lg px-3 h-9 text-[13px] font-semibold text-ink-soft hover:text-ink">
+              Cancel
+            </button>
+          </div>
+          <p className="hidden sm:block mt-1.5 text-[11.5px] text-ink-soft">Ctrl or ⌘ + Enter sends.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={approve}
+            disabled={review.pending}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-green text-white font-bold h-10 text-[13.5px] disabled:opacity-50 hover:brightness-110"
+          >
+            <CheckIcon className="w-4 h-4" />
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            disabled={review.pending}
+            className="rounded-lg bg-amber text-white font-bold h-10 text-[13.5px] disabled:opacity-50 hover:brightness-110"
+          >
+            Needs changes
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}

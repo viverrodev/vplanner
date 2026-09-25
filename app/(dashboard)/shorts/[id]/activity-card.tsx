@@ -18,7 +18,7 @@ function describe(e: ShortEvent): React.ReactNode {
       if (e.fromStage === "review" && e.toStage === "ready") return "approved it";
       if (e.fromStage === "review" && e.toStage === "editing") return "asked for changes";
       if (e.fromStage === "script" && e.toStage === "editing") return "sent it to editing";
-      if (e.toStage === "posted") return "— now live on every platform";
+      if (e.toStage === "posted") return "finished posting it everywhere";
       return (
         <>
           moved it to <b>{e.toStage ? SHORT_STAGE_LABELS[e.toStage] : "?"}</b>

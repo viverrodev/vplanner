@@ -49,7 +49,7 @@ export function AssigneeRow({
       const member = eligible.find((e) => e.teamMemberId === memberId);
       if (member) applyOptimistic({ type: "add", member });
     },
-    success: "Assigned — they've been notified",
+    success: "Assigned. They've been notified",
   });
 
   const unassign = useAction(removeAssignee, {
@@ -116,7 +116,7 @@ export function AssigneeRow({
       )}
       {isMaster && available.length === 0 && shown.length === 0 && (
         <span className="text-[11.5px] text-ink-soft">
-          Nobody holds a role for this stage yet — assign one from the Team
+          Nobody holds a role for this stage yet. Assign one from the Team
           page.
         </span>
       )}

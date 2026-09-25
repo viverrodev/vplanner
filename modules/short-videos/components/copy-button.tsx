@@ -15,7 +15,7 @@ export function CopyButton({ text, label = "Copy", toastText }: { text: string; 
       toast.success(toastText ?? "Copied");
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn't copy — select the text and copy it manually.");
+      toast.error("Couldn't copy. Select the text and copy it manually.");
     }
   }
 

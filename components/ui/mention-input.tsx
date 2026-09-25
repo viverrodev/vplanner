@@ -289,7 +289,7 @@ export function MentionInput({
     const accepted: File[] = [];
     Array.from(list).forEach((f) => {
       if (f.size > MAX_FILE_BYTES) {
-        toast.error(`${f.name} is over 25MB — skipped.`);
+        toast.error(`${f.name} is over 25MB. Skipped.`);
         return;
       }
       accepted.push(f);

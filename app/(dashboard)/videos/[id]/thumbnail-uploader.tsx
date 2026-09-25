@@ -51,7 +51,7 @@ export function ThumbnailUploader({
         .upload(path, file, { cacheControl: UPLOAD_CACHE_CONTROL, contentType: file.type });
 
       if (uploadError) {
-        toast.error("Upload failed — you may not have permission to add thumbnails here.");
+        toast.error("Upload failed. You may not have permission to add thumbnails here.");
         failed++;
         continue;
       }

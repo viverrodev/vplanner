@@ -29,7 +29,7 @@ export async function updateTitleText(
     .update({ title: text.trim() })
     .eq("id", titleId);
 
-  if (error) return { error: "Couldn't save — try again." };
+  if (error) return { error: "Couldn't save. Try again." };
 
   // If this title happens to be the picked one, keep the project's main
   // title column in sync so the header and list cards match.

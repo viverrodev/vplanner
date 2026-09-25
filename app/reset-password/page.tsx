@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
     setPending(false);
 
     if (updateError) {
-      setError("Couldn't update your password — the link may have expired. Request a new one from the sign-in page.");
+      setError("Couldn't update your password. The link may have expired. Request a new one from the sign-in page.");
       return;
     }
 

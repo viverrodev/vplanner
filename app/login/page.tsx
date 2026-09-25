@@ -35,7 +35,7 @@ export default function LoginPage() {
     setResetPending(false);
     // Deliberately vague either way — never confirm/deny whether an
     // email has an account, same reasoning as the sign-in error.
-    if (error) setResetError("Couldn't send the reset email — try again.");
+    if (error) setResetError("Couldn't send the reset email. Try again.");
     else setResetSent(true);
   }
 
@@ -122,7 +122,7 @@ export default function LoginPage() {
           <div className="space-y-4">
             <p className="text-sm text-ink-soft leading-relaxed">
               If an account exists for <span className="font-semibold text-ink">{resetEmail}</span>,
-              a reset link is on its way — check your inbox.
+              a reset link is on its way. Check your inbox.
             </p>
             <button
               onClick={() => setMode("signin")}

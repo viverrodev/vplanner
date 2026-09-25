@@ -23,7 +23,7 @@ export default function NewTeamPage() {
           Name your team
         </h1>
         <p className="text-sm text-ink-soft mb-8 leading-relaxed">
-          A team is a channel or workspace — your first one might be your
+          A team is a channel or workspace. Your first one might be your
           main channel. You&rsquo;ll be its owner, and you can invite
           teammates and create more teams later.
         </p>

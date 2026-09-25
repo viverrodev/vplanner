@@ -637,7 +637,7 @@ export function GlobalSearch({
                   />
                 ) : error ? (
                   <p className="px-5 py-12 text-center text-[13px] text-ink-faint">
-                    Search isn&rsquo;t available right now — check your connection and try again.
+                    Search isn&rsquo;t available right now. Check your connection and try again.
                   </p>
                 ) : nothingFound ? (
                   <div className="px-5 py-12 text-center">

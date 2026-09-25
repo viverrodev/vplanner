@@ -43,7 +43,7 @@ export async function createTeam(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Your session expired — sign in again." };
+    return { error: "Your session expired. Sign in again." };
   }
 
   const baseSlug = slugify(name);

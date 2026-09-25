@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTeamsAndCurrent } from "@/lib/teams";
+import { getMembership } from "@/lib/permissions/membership";
+import { isMaster } from "@/lib/permissions/roles";
 
 export type CreateProjectState = { error?: string } | undefined;
 
@@ -14,10 +16,16 @@ export async function createProject(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Your session expired — sign in again." };
+  if (!user) return { error: "Your session expired. Sign in again." };
 
   const { currentTeam } = await getTeamsAndCurrent(supabase);
   if (!currentTeam) return { error: "Create a team first." };
+
+  const membership = await getMembership(supabase, currentTeam.id);
+  const myRoles = membership?.roles ?? [];
+  if (!isMaster(myRoles) && !myRoles.includes("publisher")) {
+    return { error: "Only the master or a scheduler can create long videos." };
+  }
 
   const titles = formData
     .getAll("titles")

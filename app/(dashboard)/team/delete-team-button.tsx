@@ -56,7 +56,7 @@ export function DeleteTeamButton({
             </h2>
             <p className="text-[13px] text-ink-soft leading-relaxed mb-4">
               This is <b>permanent</b>. Every project, comment, thumbnail, and
-              member on this team is wiped along with it — there&rsquo;s no
+              member on this team is wiped along with it. There&rsquo;s no
               undo and no recovering it afterward.
             </p>
 

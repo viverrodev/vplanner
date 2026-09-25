@@ -73,7 +73,7 @@ export async function respondToTeamInvite(inviteId: string, accept: boolean) {
   if (new Date(invite.expires_at) < new Date()) {
     await admin.from("team_invites").update({ status: "expired" }).eq("id", inviteId).eq("status", "pending");
     revalidatePath("/", "layout");
-    return { error: "This invite has expired — ask them to send a new one." };
+    return { error: "This invite has expired. Ask them to send a new one." };
   }
 
   // Claim the invite atomically.
@@ -122,7 +122,7 @@ export async function respondToTeamInvite(inviteId: string, accept: boolean) {
           .from("team_invites")
           .update({ status: "pending", responded_at: null })
           .eq("id", inviteId);
-        return { error: "Couldn't join the team — try again." };
+        return { error: "Couldn't join the team. Try again." };
       }
 
       const roles = sanitizeInviteRoles(invite.proposed_roles);
@@ -212,7 +212,7 @@ export async function respondToOwnershipTransfer(requestId: string, accept: bool
     if (!team || team.owner_id !== request.from_user_id) {
       await admin.from("ownership_transfer_requests").update({ status: "expired" }).eq("id", requestId);
       revalidatePath("/", "layout");
-      return { error: "This request is no longer valid — the team's ownership has changed." };
+      return { error: "This request is no longer valid. The team's ownership has changed." };
     }
     if (!targetMember) {
       return { error: "You're no longer an active member of this team." };
@@ -245,7 +245,7 @@ export async function respondToOwnershipTransfer(requestId: string, accept: bool
         .from("ownership_transfer_requests")
         .update({ status: "pending", responded_at: null })
         .eq("id", requestId);
-      return { error: "Couldn't complete the transfer — try again." };
+      return { error: "Couldn't complete the transfer. Try again." };
     }
 
     const { data: targetMember } = await admin

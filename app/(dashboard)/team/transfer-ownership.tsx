@@ -40,7 +40,7 @@ export function TransferOwnership({
     const ok = await confirm({
       title: `Send ownership to ${selected.name}?`,
       description:
-        "They'll get a notification to accept or decline. Nothing changes until they say yes — you stay the owner until then.",
+        "They'll get a notification to accept or decline. Nothing changes until they say yes. You stay the owner until then.",
       confirmLabel: "Send request",
       danger: true,
     });
@@ -97,7 +97,7 @@ export function TransferOwnership({
   if (candidates.length === 0) {
     return (
       <p className="text-[12.5px] text-ink-faint">
-        No one else is on this team yet — invite someone before you can transfer ownership.
+        No one else is on this team yet. Invite someone before you can transfer ownership.
       </p>
     );
   }

@@ -4,7 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createShort } from "../actions";
 import { useToast } from "@/components/ui/toast-provider";
-import { PLATFORMS, YOUTUBE_TITLE_LIMIT, type Platform } from "@/modules/short-videos/lib/constants";
+import { PLATFORMS, YOUTUBE_TITLE_LIMIT, type Platform, type ShortType } from "@/modules/short-videos/lib/constants";
+import { ShortTypePicker, Switch } from "@/modules/short-videos/components/short-type";
 import type { DatedShort, ShortTeamSettings, TeamPerson } from "@/modules/short-videos/lib/queries";
 import { ScheduleField, type ScheduleValue } from "@/modules/short-videos/components/schedule-field";
 import { PlatformPicker } from "@/modules/short-videos/components/platform-picker";
@@ -27,6 +28,8 @@ export function NewShortForm({
   settings,
   nextSlot,
   limits,
+  queueStart,
+  canStartQueue,
 }: {
   canAssignPeople: boolean;
   people: TeamPerson[];
@@ -34,6 +37,8 @@ export function NewShortForm({
   settings: ShortTeamSettings;
   nextSlot: string | null;
   limits: Record<string, number>;
+  queueStart: { id: string; number: number; date: string } | null;
+  canStartQueue: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -48,7 +53,9 @@ export function NewShortForm({
   const [scheduler, setScheduler] = useState<string | null>(settings.defaultScheduler);
   const [platforms, setPlatforms] = useState<Platform[]>([...PLATFORMS]);
   const [caption, setCaption] = useState("");
-  const [showCaption, setShowCaption] = useState(false);
+  // Captions are automatic for normal shorts; switch on only for special ones.
+  const [captionOn, setCaptionOn] = useState(false);
+  const [shortType, setShortType] = useState<ShortType>(settings.defaultType);
   const [error, setError] = useState<string | null>(null);
 
   function submit(addAnother: boolean) {
@@ -68,18 +75,21 @@ export function NewShortForm({
         schedulerMemberId: scheduler,
         platforms,
         caption,
+        captionEnabled: captionOn,
+        shortType,
       });
       if (!("id" in res) || !res.id) {
-        const message = res.error ?? "Couldn't create the short — try again.";
+        const message = res.error ?? "Couldn't create the short. Try again.";
         setError(message);
         toast.error(message);
         return;
       }
       const when = res.plannedDate ? ` for ${formatShortDate(res.plannedDate)}` : "";
       if (addAnother) {
-        toast.success(`#${res.number} scheduled${when} — add the next one`);
+        toast.success(`#${res.number} scheduled${when}. Add the next one`);
         setTitle("");
         setCaption("");
+        setCaptionOn(false);
         titleRef.current?.focus();
         router.refresh(); // refreshes the next Auto date too
       } else {
@@ -115,8 +125,13 @@ export function NewShortForm({
         />
         <p className={`mt-1.5 text-[11.5px] ${titleLen > YOUTUBE_TITLE_LIMIT ? "text-amber" : "text-ink-faint"}`}>
           {titleLen}/{YOUTUBE_TITLE_LIMIT}
-          {titleLen > YOUTUBE_TITLE_LIMIT ? " — YouTube titles are cut off after 100 characters" : " · YouTube title limit"}
+          {titleLen > YOUTUBE_TITLE_LIMIT ? ". YouTube cuts titles off after 100" : " · YouTube title limit"}
         </p>
+      </div>
+
+      <div>
+        <Label>Type</Label>
+        <ShortTypePicker value={shortType} onChange={setShortType} />
       </div>
 
       <div>
@@ -129,6 +144,8 @@ export function NewShortForm({
           perDay={settings.perDay}
           weekends={settings.weekends}
           limits={limits}
+          queueStart={queueStart}
+          canStartQueue={canStartQueue}
         />
       </div>
 
@@ -159,26 +176,24 @@ export function NewShortForm({
         <PlatformPicker value={platforms} onChange={setPlatforms} />
       </div>
 
-      <div>
-        {showCaption ? (
-          <>
-            <label htmlFor="short-caption">
-              <Label hint="(optional)">Caption</Label>
-            </label>
-            <textarea
-              id="short-caption"
-              value={caption}
-              maxLength={5000}
-              onChange={(e) => setCaption(e.target.value)}
-              rows={4}
-              placeholder="Description / caption + hashtags"
-              className="w-full rounded-xl border border-line/15 bg-surface px-4 py-3 text-[14px] outline-none focus:ring-2 focus:ring-amber resize-y"
-            />
-          </>
-        ) : (
-          <button type="button" onClick={() => setShowCaption(true)} className="text-[13px] font-semibold text-amber">
-            + Add a caption
-          </button>
+      <div className="space-y-3">
+        <Switch
+          checked={captionOn}
+          onChange={setCaptionOn}
+          label="Custom caption"
+          hint="Off uses the automatic caption. Turn on for special shorts."
+        />
+        {captionOn && (
+          <textarea
+            aria-label="Caption"
+            value={caption}
+            maxLength={5000}
+            onChange={(e) => setCaption(e.target.value)}
+            rows={4}
+            autoFocus
+            placeholder="Caption + hashtags"
+            className="w-full rounded-xl border border-line/15 bg-surface px-4 py-3 text-[14px] outline-none focus:ring-2 focus:ring-amber resize-y"
+          />
         )}
       </div>
 

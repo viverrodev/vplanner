@@ -11,22 +11,26 @@ export function shortPermissions({
   isAssignedEditor,
   isAssignedReviewer = false,
   stage,
+  scheduleMode = "auto",
 }: {
   roles: RoleId[];
   isAssignedEditor: boolean;
   isAssignedReviewer?: boolean;
   stage: ShortStage;
+  scheduleMode?: "auto" | "pinned";
 }) {
   const master = isMaster(roles);
-  const scripter = roles.includes("scripter");
   const scheduler = roles.includes("publisher");
-  const inScript = stage === "script";
 
   return {
     isMaster: master,
-    canCreate: master || scripter,
-    canEditBasics: master || (scripter && inScript), // title, date, platforms
-    canEditCaption: master || scheduler || (scripter && inScript),
+    canCreate: master || scheduler,
+    canEditBasics: master || scheduler, // title, type, platforms
+    // Fixed dates and the queue start are the master's. A scheduler can
+    // give an Auto short a date (as "Just this one").
+    canEditSchedule: master || (scheduler && scheduleMode === "auto"),
+    canStartQueue: master,
+    canEditCaption: master || scheduler,
     canEditFileLink: master || isAssignedEditor || scheduler,
     canAssignEditor: master,
     canAssignPeople: master, // editor, reviewer, scheduler

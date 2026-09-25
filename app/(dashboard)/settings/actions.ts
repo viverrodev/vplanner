@@ -38,7 +38,7 @@ export async function updateProfile(
     if (error.code === "23505") {
       return { error: "That username is already taken." };
     }
-    return { error: "Couldn't save — try again." };
+    return { error: "Couldn't save. Try again." };
   }
 
   revalidatePath("/", "layout");
@@ -62,7 +62,7 @@ export async function updateAvatar(avatarUrl: string | null) {
     .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
     .eq("id", user.id);
 
-  if (error) return { error: "Couldn't save the photo — try again." };
+  if (error) return { error: "Couldn't save the photo. Try again." };
 
   revalidatePath("/", "layout");
   return { success: true };
@@ -80,7 +80,7 @@ export async function updateTeamsVisibility(visible: boolean) {
     .update({ teams_visible: visible })
     .eq("id", user.id);
 
-  if (error) return { error: "Couldn't save — try again." };
+  if (error) return { error: "Couldn't save. Try again." };
 
   revalidatePath("/settings");
   return { success: true };

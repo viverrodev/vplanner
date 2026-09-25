@@ -8,7 +8,7 @@ import { PersonAvatar } from "./person-chip";
 export type PersonKind = "editor" | "reviewer" | "scheduler";
 
 const ROLE_FOR: Record<PersonKind, RoleId[]> = {
-  editor: ["editor"],
+  editor: ["editor", "master"], // masters can take on any job
   reviewer: ["master"],
   scheduler: ["publisher", "master"],
 };
@@ -22,7 +22,10 @@ const EMPTY: Record<PersonKind, string> = {
 /** Build the option list for a role picker (shared with the table's editor cell). */
 export function personOptions(kind: PersonKind, people: TeamPerson[], currentId: string | null): SelectOption[] {
   const roles = ROLE_FOR[kind];
-  const primary = people.filter((p) => p.roles.some((r) => roles.includes(r)));
+  // Role holders first (e.g. Editors), then Masters, so each group shows once.
+  const primary = people
+    .filter((p) => p.roles.some((r) => roles.includes(r)))
+    .sort((a, b) => Number(a.roles.includes("master") && !a.roles.includes(roles[0])) - Number(b.roles.includes("master") && !b.roles.includes(roles[0])));
   const others = kind === "reviewer" ? people.filter((p) => !primary.includes(p)) : [];
   const current = currentId ? people.find((p) => p.memberId === currentId) : undefined;
   const orphan = current && !primary.includes(current) && !others.includes(current) ? current : null;
@@ -43,7 +46,14 @@ export function personOptions(kind: PersonKind, people: TeamPerson[], currentId:
   return [
     ...(orphan ? [toOption(orphan, "Currently set")] : []),
     ...primary.map((p) =>
-      toOption(p, kind === "reviewer" ? "Masters" : kind === "editor" ? "Editors" : "Schedulers")
+      toOption(
+        p,
+        kind === "reviewer"
+          ? "Masters"
+          : kind === "editor"
+            ? p.roles.includes("editor") ? "Editors" : "Masters"
+            : p.roles.includes("publisher") ? "Schedulers" : "Masters"
+      )
     ),
     ...others.map((p) => toOption(p, "Teammates")),
   ];

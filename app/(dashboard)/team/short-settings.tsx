@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { updateShortSettings } from "./actions";
 import { useAction } from "@/lib/hooks/use-action";
 import { Select } from "@/components/ui/select";
+import { ShortTypePicker } from "@/modules/short-videos/components/short-type";
 import { PersonSelect } from "@/modules/short-videos/components/person-select";
 import type { ShortTeamSettings, TeamPerson } from "@/modules/short-videos/lib/queries";
 
@@ -20,6 +21,7 @@ export function ShortSettingsForm({
   const [perDay, setPerDay] = useState(settings.perDay);
   const [weekends, setWeekends] = useState(settings.weekends);
   const [rollForward, setRollForward] = useState(settings.rollForward);
+  const [defaultType, setDefaultType] = useState(settings.defaultType);
   const [timezone, setTimezone] = useState(settings.timezone);
   const [editor, setEditor] = useState(settings.defaultEditor);
   const [reviewer, setReviewer] = useState(settings.defaultReviewer);
@@ -38,6 +40,7 @@ export function ShortSettingsForm({
     perDay !== settings.perDay ||
     weekends !== settings.weekends ||
     rollForward !== settings.rollForward ||
+    defaultType !== settings.defaultType ||
     timezone !== settings.timezone ||
     editor !== settings.defaultEditor ||
     reviewer !== settings.defaultReviewer ||
@@ -49,7 +52,7 @@ export function ShortSettingsForm({
     timezone !== settings.timezone;
 
   const save = useAction(updateShortSettings, {
-    success: rhythmChanged ? "Saved — auto-scheduled shorts were re-dated" : "Saved",
+    success: rhythmChanged ? "Saved. Auto dates updated." : "Saved",
   });
 
   return (
@@ -108,13 +111,18 @@ export function ShortSettingsForm({
         <span>
           <span className="block text-[13px] font-semibold">Roll unposted shorts forward</span>
           <span className="block text-[12px] text-ink-soft">
-            An Auto short that wasn&rsquo;t posted on its day moves to the next free slot. Shorts with a fixed date stay put and show as overdue.
+            Missed an Auto short? It moves to the next free day. Fixed dates stay put.
           </span>
         </span>
       </button>
 
       <div>
-        <div className="text-[11.5px] font-semibold text-ink-soft mb-1.5">Defaults for new shorts</div>
+        <div className="text-[11.5px] font-semibold text-ink-soft mb-1.5">Default type for new shorts</div>
+        <ShortTypePicker value={defaultType} onChange={setDefaultType} />
+      </div>
+
+      <div>
+        <div className="text-[11.5px] font-semibold text-ink-soft mb-1.5">Default people for new shorts</div>
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <div className="text-[11px] text-ink-faint mb-1">Editor</div>
@@ -140,6 +148,7 @@ export function ShortSettingsForm({
               perDay,
               weekends,
               rollForward,
+              defaultType,
               timezone,
               defaultEditor: editor,
               defaultReviewer: reviewer,
@@ -151,7 +160,7 @@ export function ShortSettingsForm({
           {save.pending ? "Saving…" : "Save"}
         </button>
         {rhythmChanged && (
-          <span className="text-[12px] text-ink-faint">Saving re-dates every auto-scheduled short.</span>
+          <span className="text-[12px] text-ink-faint">Saving updates the Auto dates.</span>
         )}
       </div>
     </div>

@@ -54,7 +54,7 @@ export function useAction<Args extends unknown[], R extends ActionResult>(
           opts.onSuccess?.(result, ...args);
           resolve(true);
         } catch {
-          const message = "Something went wrong — try again.";
+          const message = "Something went wrong. Try again.";
           toast.error(message);
           opts.onError?.(message, ...args);
           resolve(false);

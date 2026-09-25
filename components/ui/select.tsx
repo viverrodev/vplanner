@@ -37,6 +37,7 @@ export function Select({
   renderValue,
   className = "",
   menuMinWidth = 220,
+  fullWidth = false,
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
@@ -53,6 +54,8 @@ export function Select({
   renderValue?: (option: SelectOption | null) => React.ReactNode;
   className?: string;
   menuMinWidth?: number;
+  /** Stretch a compact trigger to fill its container (e.g. a table cell). */
+  fullWidth?: boolean;
 }) {
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -227,7 +230,7 @@ export function Select({
           open ? "border-amber text-ink" : "border-line/30 hover:border-line/50"
         } ${className}`
       : variant === "inline"
-      ? `group inline-flex items-center gap-1.5 max-w-full rounded-md -mx-1.5 px-1.5 py-1 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber disabled:opacity-60 disabled:hover:bg-transparent ${className}`
+      ? `group inline-flex items-center gap-1.5 max-w-full ${fullWidth ? "w-full" : ""} rounded-md -mx-1.5 px-1.5 py-1 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber disabled:opacity-60 disabled:hover:bg-transparent ${className}`
       : `w-full min-w-0 inline-flex items-center gap-2 rounded-lg border bg-surface px-3 h-10 text-[14px] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber disabled:opacity-60 ${
           open ? "border-amber ring-2 ring-amber/40" : "border-line/15 hover:border-line/30"
         } ${className}`;
@@ -249,7 +252,8 @@ export function Select({
         aria-label={ariaLabel}
         className={triggerCls}
       >
-        <span className="flex-1 min-w-0 flex items-center gap-2 truncate">
+        {/* Only full-width fields stretch the label; compact triggers size to it. */}
+        <span className={`${variant === "field" || fullWidth ? "flex-1" : ""} min-w-0 flex items-center gap-2 truncate`}>
           {renderValue ? (
             renderValue(selected && selected.value !== "__none__" ? selected : null)
           ) : selected ? (
