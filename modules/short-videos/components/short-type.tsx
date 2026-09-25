@@ -99,3 +99,23 @@ export function Switch({
     </button>
   );
 }
+
+/** Compact S / B badge for tight spaces (table rows). Filler shows nothing. */
+export function ShortTypeBadge({ type }: { type: ShortType }) {
+  const meta = SHORT_TYPE_META[type];
+  if (!meta.color) return null;
+  return (
+    <span
+      title={meta.label}
+      aria-label={meta.label}
+      className="inline-flex items-center justify-center w-6 h-6 rounded-md text-[11.5px] font-extrabold flex-shrink-0"
+      style={{
+        color: `color-mix(in srgb, ${meta.color} 65%, rgb(var(--ink)))`,
+        background: `color-mix(in srgb, ${meta.color} 18%, transparent)`,
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${meta.color} 35%, transparent)`,
+      }}
+    >
+      {meta.label[0]}
+    </span>
+  );
+}

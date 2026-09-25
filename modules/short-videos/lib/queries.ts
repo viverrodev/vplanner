@@ -36,6 +36,8 @@ export type ShortListItem = {
   scheduler: ShortEditor | null;
   shortType: ShortType;
   captionEnabled: boolean;
+  caption: string | null;
+  fileLink: string | null;
   /** Final file is a Frame.io link (required before "Mark editing done"). */
   hasFrameio: boolean;
   platforms: Platform[];
@@ -65,7 +67,7 @@ const PEOPLE_SELECT =
   `reviewer:team_members!short_videos_reviewer_member_id_fkey${PERSON_EMBED}, ` +
   `scheduler:team_members!short_videos_scheduler_member_id_fkey${PERSON_EMBED}`;
 const LIST_SELECT =
-  "id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, short_type, caption_enabled, " +
+  "id, entry_number, title, stage, planned_date, schedule_mode, pin_kind, queue_position, platforms, file_link, short_type, caption_enabled, caption, " +
   PEOPLE_SELECT +
   ", short_video_posts(platform)";
 
@@ -107,7 +109,9 @@ export async function listShorts(teamId: string): Promise<ShortListItem[]> {
     scheduler: toEditor(r.scheduler as RawEditor),
     shortType: ((r.short_type as ShortType) ?? "filler"),
     captionEnabled: !!r.caption_enabled,
+    caption: (r.caption as string | null) ?? null,
     hasFrameio: isFrameioLink(r.file_link as string | null),
+    fileLink: (r.file_link as string | null) ?? null,
     hasFileLink: !!r.file_link,
   }));
 }

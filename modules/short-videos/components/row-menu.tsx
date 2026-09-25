@@ -7,7 +7,8 @@ import { useDeleteShort } from "../lib/use-delete-short";
 import { useAction } from "@/lib/hooks/use-action";
 import { useMenuKeyboard } from "@/lib/hooks/use-menu-keyboard";
 import { useConfirm } from "@/components/ui/confirm-provider";
-import { ArrowRightIcon, MoreIcon, TrashIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, EditIcon, MoreIcon, TrashIcon } from "@/components/ui/icons";
+import { ShortSettingsDialog, type ShortSettingsContext, type ShortSettingsData } from "./short-settings-dialog";
 
 /**
  * ⋯ menu on a table row (masters): move one slot up/down in the queue,
@@ -22,6 +23,8 @@ export function ShortRowMenu({
   pinKind,
   locked,
   queueStart = null,
+  isMaster = true,
+  settings,
 }: {
   id: string;
   number: number;
@@ -30,7 +33,11 @@ export function ShortRowMenu({
   pinKind: "anchor" | "oneoff" | null;
   locked: boolean;
   queueStart?: { id: string; number: number; date: string } | null;
+  /** Schedulers get Open + Edit settings; moving and deleting stay master-only. */
+  isMaster?: boolean;
+  settings?: { short: ShortSettingsData; ctx: ShortSettingsContext };
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const startTaken = !!queueStart && queueStart.id !== id;
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, up: false });
@@ -129,6 +136,22 @@ export function ShortRowMenu({
               <ArrowRightIcon className="w-3.5 h-3.5 text-ink-soft" />
               Open
             </a>
+            {settings && (
+              <button
+                type="button"
+                role="menuitem"
+                className={item}
+                onClick={() => {
+                  setOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                <EditIcon className="w-3.5 h-3.5 text-ink-soft" />
+                Edit
+              </button>
+            )}
+            {isMaster && (
+            <>
             <div className="my-1 h-px bg-line/10" />
             <button
               type="button"
@@ -213,9 +236,19 @@ export function ShortRowMenu({
               <TrashIcon className="w-3.5 h-3.5" />
               Delete short
             </button>
+            </>
+            )}
           </div>,
           document.body
         )}
+      {settings && (
+        <ShortSettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          short={settings.short}
+          ctx={settings.ctx}
+        />
+      )}
     </>
   );
 }

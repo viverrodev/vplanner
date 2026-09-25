@@ -464,3 +464,129 @@ export function MoreIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* ---- Script editor toolbar ------------------------------------------------ */
+
+export function BoldIcon(p: IconProps) {
+  return (
+    <Svg {...p} strokeWidth={2.25}>
+      <path d="M7 4.5h6a3.75 3.75 0 0 1 0 7.5H7ZM7 12h7a3.75 3.75 0 0 1 0 7.5H7Z" />
+    </Svg>
+  );
+}
+export function ItalicIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 4.5h8M6 19.5h8M14.5 4.5l-5 15" />
+    </Svg>
+  );
+}
+export function UnderlineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14" />
+    </Svg>
+  );
+}
+export function StrikeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 12h16M16.5 7.5c-.6-1.8-2.4-3-4.6-3-2.7 0-4.4 1.5-4.4 3.4 0 1.3.8 2.3 2.4 3M8 16.5c.6 1.9 2.4 3 4.8 3 2.8 0 4.7-1.5 4.7-3.5 0-.9-.3-1.6-.9-2.2" />
+    </Svg>
+  );
+}
+export function HighlighterIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m9 15 6.5-6.5a2.1 2.1 0 0 0-3-3L6 12l-1 4 4-1ZM14 7l3 3M4 20h9" />
+    </Svg>
+  );
+}
+export function ListBulletIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />
+    </Svg>
+  );
+}
+export function ListNumberIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 6.5h10M10 12h10M10 17.5h10M4 5.5h1.5v4M4 9.5h3M4 14.5c.4-.6 1-.9 1.6-.9.8 0 1.4.5 1.4 1.2 0 1-3 1.7-3 3.6h3" />
+    </Svg>
+  );
+}
+export function ListCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="4.5" width="5" height="5" rx="1" />
+      <path d="m4.5 16 1.5 1.5 2.5-3M11.5 7h9M11.5 16h9" />
+    </Svg>
+  );
+}
+export function QuoteIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 11h4v6H5v-6Zm0 0c0-3 1-5 4-6M15 11h4v6h-4v-6Zm0 0c0-3 1-5 4-6" />
+    </Svg>
+  );
+}
+export function AlignLeftIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />
+    </Svg>
+  );
+}
+export function AlignCenterIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />
+    </Svg>
+  );
+}
+export function AlignRightIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />
+    </Svg>
+  );
+}
+export function ImageIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <circle cx="9" cy="9.5" r="1.5" />
+      <path d="m20.5 16-4.5-4.5-8.5 8" />
+    </Svg>
+  );
+}
+export function UndoIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M9 7 4.5 11.5 9 16M5 11.5h9.5a5 5 0 0 1 0 10H12" />
+    </Svg>
+  );
+}
+export function RedoIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m15 7 4.5 4.5L15 16M19 11.5H9.5a5 5 0 0 0 0 10H12" />
+    </Svg>
+  );
+}
+export function DownloadIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
+    </Svg>
+  );
+}
+export function DocumentIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </Svg>
+  );
+}

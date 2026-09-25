@@ -133,3 +133,76 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-\[compass-wobble_4s_ease-in-out_infinite\] { animation: none; }
 }
+
+/* ---- Script editor ------------------------------------------------------- */
+/* The paper has its own light/dark switch, independent of the app theme. */
+.script-paper {
+  --sp-bg: 255 255 255;
+  --sp-ink: 26 23 18;
+  --sp-soft: 92 86 76;
+  --sp-line: 0 0 0;
+  background: rgb(var(--sp-bg));
+  color: rgb(var(--sp-ink));
+}
+.script-paper[data-paper="dark"] {
+  --sp-bg: 26 23 18;
+  --sp-ink: 238 234 226;
+  --sp-soft: 176 168 154;
+  --sp-line: 255 255 255;
+}
+.script-soft { color: rgb(var(--sp-soft)); }
+.script-soft-border { border-color: rgb(var(--sp-line) / 0.18); }
+
+.script-doc { font-size: 17px; line-height: 1.75; min-height: 50vh; caret-color: rgb(var(--amber)); }
+.script-doc > * + * { margin-top: 0.75em; }
+.script-doc h1 { font-size: 1.9em; line-height: 1.2; font-weight: 700; margin-top: 1.2em; }
+.script-doc h2 { font-size: 1.45em; line-height: 1.25; font-weight: 700; margin-top: 1.3em; }
+.script-doc h3 { font-size: 1.2em; line-height: 1.3; font-weight: 650; margin-top: 1.1em; }
+.script-doc > :first-child { margin-top: 0; }
+.script-doc ul { list-style: disc; padding-left: 1.5em; }
+.script-doc ol { list-style: decimal; padding-left: 1.5em; }
+.script-doc li > p { margin: 0.15em 0; }
+.script-doc blockquote {
+  border-left: 3px solid rgb(var(--amber));
+  padding: 0.1em 0 0.1em 1em;
+  color: rgb(var(--sp-soft));
+  font-style: italic;
+}
+.script-doc a { color: rgb(var(--blue)); text-decoration: underline; text-underline-offset: 2px; }
+.script-paper[data-paper="dark"] .script-doc a { color: #8FB4FF; }
+.script-doc hr { border: 0; border-top: 1px solid rgb(var(--sp-line) / 0.15); margin: 1.5em 0; }
+/* Highlights keep dark text so they're readable on both papers. */
+/* !important: the editor writes "color: inherit" inline on highlights. */
+.script-doc mark { color: #1c1a16 !important; border-radius: 3px; padding: 0.05em 0.15em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.script-doc ul[data-type="taskList"] { list-style: none; padding-left: 0.2em; }
+.script-doc ul[data-type="taskList"] li { display: flex; gap: 0.6em; align-items: flex-start; }
+.script-doc ul[data-type="taskList"] li > label { margin-top: 0.35em; flex-shrink: 0; }
+.script-doc ul[data-type="taskList"] li > label input { width: 1em; height: 1em; accent-color: rgb(var(--amber)); }
+.script-doc ul[data-type="taskList"] li > div { flex: 1; }
+.script-doc ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; opacity: 0.6; }
+.script-doc p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--sp-soft) / 0.8);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.script-doc .ProseMirror-selectednode { outline: none; }
+.print-only { display: none; }
+
+/* PDF export = the browser's print, showing only the paper. */
+@media print {
+  @page { margin: 18mm; }
+  body * { visibility: hidden !important; }
+  .script-print, .script-print * { visibility: visible !important; }
+  .script-print {
+    position: absolute; left: 0; top: 0; width: 100% !important; max-width: none !important;
+    border: 0 !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important;
+    --sp-bg: 255 255 255; --sp-ink: 0 0 0; --sp-soft: 70 70 70; --sp-line: 0 0 0;
+  }
+  .script-print .print-only { display: block; }
+  .no-print { display: none !important; }
+  .script-image [contenteditable="false"] { display: none !important; }
+  .script-doc { min-height: 0; font-size: 12pt; }
+  .script-doc mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

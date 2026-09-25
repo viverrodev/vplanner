@@ -191,7 +191,7 @@ export function DatePicker({
             role="dialog"
             aria-label={ariaLabel}
             style={{ left: pos.left, ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }) }}
-            className="fixed z-[90] w-[304px] rounded-2xl border border-line/15 bg-surface shadow-2xl p-3 animate-[modalin_.12s_ease]"
+            className="fixed z-[130] w-[304px] rounded-2xl border border-line/15 bg-surface shadow-2xl p-3 animate-[modalin_.12s_ease]"
           >
             <div className="flex items-center justify-between mb-2">
               <button

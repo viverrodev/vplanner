@@ -282,7 +282,7 @@ export function Select({
               width: pos.width,
               ...(pos.up ? { bottom: window.innerHeight - pos.top } : { top: pos.top }),
             }}
-            className="fixed z-[90] rounded-xl border border-line/15 bg-surface shadow-2xl overflow-hidden animate-[modalin_.12s_ease]"
+            className="fixed z-[130] rounded-xl border border-line/15 bg-surface shadow-2xl overflow-hidden animate-[modalin_.12s_ease]"
           >
             {useSearch && (
               <div className="flex items-center gap-2 px-3 h-10 border-b border-line/10">

@@ -25,7 +25,7 @@ export function shortPermissions({
   return {
     isMaster: master,
     canCreate: master || scheduler,
-    canEditBasics: master || scheduler, // title, type, platforms
+    canEditBasics: master || scheduler, // the Settings window: people, date, type, platforms, caption, file
     // Fixed dates and the queue start are the master's. A scheduler can
     // give an Auto short a date (as "Just this one").
     canEditSchedule: master || (scheduler && scheduleMode === "auto"),
@@ -33,7 +33,7 @@ export function shortPermissions({
     canEditCaption: master || scheduler,
     canEditFileLink: master || isAssignedEditor || scheduler,
     canAssignEditor: master,
-    canAssignPeople: master, // editor, reviewer, scheduler
+    canAssignPeople: master || scheduler, // editor, reviewer, scheduler
     canReorder: master,
     canSendToEditing: master && stage === "script",
     canSubmitForReview: (master || isAssignedEditor) && stage === "editing",

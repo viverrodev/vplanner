@@ -35,7 +35,7 @@ import { EditorCell } from "@/modules/short-videos/components/editor-cell";
 import { ShortRowMenu } from "@/modules/short-videos/components/row-menu";
 import { ScrollToToday } from "@/modules/short-videos/components/scroll-to-today";
 import { FiltersMenu } from "@/modules/short-videos/components/filters-menu";
-import { ShortTypeTag } from "@/modules/short-videos/components/short-type";
+import { ShortTypeBadge } from "@/modules/short-videos/components/short-type";
 import { SHORTS_VIEW_COOKIE } from "@/modules/short-videos/lib/view-mode";
 import { ShortStagePill } from "@/modules/short-videos/components/stage-pill";
 import { PostedToggles } from "@/modules/short-videos/components/posted-toggles";
@@ -79,10 +79,43 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
     listShorts(currentTeam.id),
     getCachedUser(),
     getShortSettings(currentTeam.id),
-    master ? listTeamPeople(currentTeam.id) : Promise.resolve([]),
+    // Masters and schedulers can open a short's Edit window (people included).
+    master || roles.includes("publisher") ? listTeamPeople(currentTeam.id) : Promise.resolve([]),
     listDayLimits(currentTeam.id),
     getQueueStart(currentTeam.id),
   ]);
+  // For the "Edit settings" window (masters and schedulers).
+  const settingsCtx = {
+    planned: all
+      .filter((x) => x.plannedDate)
+      .map((x) => ({ id: x.id, number: x.number, title: x.title, date: x.plannedDate as string })),
+    limits: dayLimits,
+    perDay: settings.perDay,
+    weekends: settings.weekends,
+    queueStart,
+    isMaster: master,
+    people,
+  };
+  const settingsFor = (x: ShortListItem) => ({
+    short: {
+      id: x.id,
+      number: x.number,
+      title: x.title,
+      plannedDate: x.plannedDate,
+      scheduleMode: x.scheduleMode,
+      pinKind: x.pinKind,
+      shortType: x.shortType,
+      platforms: x.platforms,
+      captionEnabled: x.captionEnabled,
+      caption: x.caption,
+      fileLink: x.fileLink,
+      editorId: x.editor?.memberId ?? null,
+      reviewerId: x.reviewer?.memberId ?? null,
+      schedulerId: x.scheduler?.memberId ?? null,
+    },
+    ctx: settingsCtx,
+  });
+
   const capacityFor = (day: string) =>
     day in dayLimits
       ? dayLimits[day]
@@ -355,7 +388,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
         </div>
       ) : isTable ? (
         <div className="rounded-xl border border-line/10 bg-surface overflow-hidden">
-          <div className="hidden md:grid md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_36px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_36px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+          <div className="hidden md:grid md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_64px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_64px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
             <span className="text-right">#</span>
             <span>Title</span>
             <span className="hidden xl:block">Planned</span>
@@ -429,16 +462,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   </div>
                 )}
               <div
-                className="relative grid grid-cols-[36px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_36px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_36px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
-                style={
-                  SHORT_TYPE_META[s.shortType].color
-                    ? {
-                        // Sponsorship / Big: a colored edge + a faint tint, readable at a glance.
-                        boxShadow: `inset 4px 0 0 ${SHORT_TYPE_META[s.shortType].color}`,
-                        background: `color-mix(in srgb, ${SHORT_TYPE_META[s.shortType].color} 8%, transparent)`,
-                      }
-                    : undefined
-                }
+                className="relative grid grid-cols-[36px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_64px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_64px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
               >
                 <span className="text-right font-mono text-[12px] text-ink-faint tabular-nums self-start md:self-center pt-0.5 md:pt-0">
                   {s.number}
@@ -454,7 +478,6 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   </Link>
                   {/* Second line: type first (so Sponsor / Big read instantly), then the rest. */}
                   <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap text-[11.5px] text-ink-soft">
-                    <ShortTypeTag type={s.shortType} />
                     <span className="md:hidden">
                       <ShortStagePill stage={s.stage} />
                     </span>
@@ -527,11 +550,12 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                     >
                       {s.platforms.filter((p) => s.postedPlatforms.includes(p)).length}/{s.platforms.length}
                     </span>
-                    {master && (
-                      <span className="md:hidden">
-                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} />
-                      </span>
-                    )}
+                    <span className="md:hidden flex items-center gap-1">
+                      <ShortTypeBadge type={s.shortType} />
+                      {(master || canPost) && (
+                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} settings={settingsFor(s)} />
+                      )}
+                    </span>
                   </div>
                   {canMarkDone && (
                     <span className="md:hidden">
@@ -539,9 +563,10 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                     </span>
                   )}
                 </div>
-                <div className="hidden md:flex justify-end">
-                  {master && (
-                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} />
+                <div className="hidden md:flex items-center justify-end gap-1.5">
+                  <ShortTypeBadge type={s.shortType} />
+                  {(master || canPost) && (
+                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} settings={settingsFor(s)} />
                   )}
                 </div>
               </div>
@@ -558,16 +583,11 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
               <div
                 key={s.id}
                 className="relative rounded-2xl border-2 border-line/10 bg-surface p-4 flex flex-col gap-3 hover:border-amber hover:shadow-[0_8px_24px_-8px_rgb(var(--amber)/0.35)] hover:-translate-y-0.5 transition-all"
-                style={
-                  SHORT_TYPE_META[s.shortType].color
-                    ? { boxShadow: `inset 0 3px 0 ${SHORT_TYPE_META[s.shortType].color}` }
-                    : undefined
-                }
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2">
                     <span className="font-mono text-[12px] font-bold text-ink-faint tabular-nums">#{s.number}</span>
-                    <ShortTypeTag type={s.shortType} />
+                    <ShortTypeBadge type={s.shortType} />
                   </span>
                   <ShortStagePill stage={s.stage} />
                 </div>
