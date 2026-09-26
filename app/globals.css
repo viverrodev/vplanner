@@ -79,12 +79,13 @@ body {
 }
 
 @keyframes toastin {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes modalin {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(6px) scale(0.965); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 rgb(var(--amber) / 0.55); }
@@ -205,4 +206,77 @@ body {
   .script-image [contenteditable="false"] { display: none !important; }
   .script-doc { min-height: 0; font-size: 12pt; }
   .script-doc mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+
+/* ---- Motion ------------------------------------------------------------
+   Apple-like: short, soft, decelerating. Everything below is switched off
+   by the user's setting (html[data-motion="off"]) or by the device's
+   "reduce motion" preference. */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+/* Pages rise in when you navigate. */
+/* Ends on "transform: none" (not translateY(0)): a leftover transform
+   would make fixed popups inside the page position against the page. */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+/* "backwards", not "both": after the animation the element goes back to
+   its own style (no transform at all). Keeping the end state leaves an
+   identity transform behind, which traps position:fixed popups. */
+.motion-page { animation: page-in 0.42s var(--ease-out) backwards; }
+
+/* Lists and tables cascade in. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.motion-stagger > * { animation: rise-in 0.45s var(--ease-out) backwards; }
+.motion-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.motion-stagger > *:nth-child(6) { animation-delay: 150ms; }
+.motion-stagger > *:nth-child(7) { animation-delay: 180ms; }
+.motion-stagger > *:nth-child(8) { animation-delay: 210ms; }
+.motion-stagger > *:nth-child(9) { animation-delay: 240ms; }
+.motion-stagger > *:nth-child(10) { animation-delay: 270ms; }
+.motion-stagger > *:nth-child(n + 11) { animation-delay: 300ms; }
+
+/* Popups and menus settle with a soft, decelerating scale. */
+[class*="animate-[modalin"] { animation-timing-function: var(--ease-out) !important; animation-duration: 0.22s !important; }
+[class*="animate-[toastin"] { animation-timing-function: var(--ease-out) !important; animation-duration: 0.42s !important; }
+
+/* A tiny press-in on buttons, like iOS. */
+button:not(:disabled):active,
+a.press:active { transform: scale(0.97); }
+button { transition-timing-function: var(--ease-out); }
+
+/* Switch knobs move with a little spring. */
+[role="switch"] span span { transition: transform 0.28s var(--ease-spring) !important; }
+
+/* Off: the user's setting, or the device asks for less motion. */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion="off"] button:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active { transform: none; }
 }

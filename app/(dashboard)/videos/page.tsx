@@ -174,7 +174,7 @@ export default async function VideosPage({
           No projects{stageFilter ? " in this stage" : " yet"}.
         </div>
       ) : isTable ? (
-        <div className="rounded-xl border border-line/10 overflow-hidden">
+        <div className="motion-stagger rounded-xl border border-line/10 overflow-hidden">
           <div className="grid grid-cols-[40px_56px_1fr] sm:grid-cols-[48px_64px_1fr_110px_160px_110px_110px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
             <span className="text-right">#</span>
             <span></span>
@@ -231,7 +231,7 @@ export default async function VideosPage({
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+        <div className="motion-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
           {projects.map((p) => {
             const thumbs = (p.project_thumbnails ?? []).sort((a, b) => a.position - b.position);
             const cover = thumbs[0];

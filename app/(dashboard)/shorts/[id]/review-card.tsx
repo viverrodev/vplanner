@@ -50,7 +50,7 @@ export function ReviewCard({
   }
 
   return (
-    <section className="rounded-2xl border-2 border-amber bg-amber/10 p-5">
+    <section className="rounded-2xl border border-amber bg-amber/10 p-5">
       <h2 className="text-[12px] font-bold uppercase tracking-wide text-amber mb-3">In review</h2>
 
       {link ? (

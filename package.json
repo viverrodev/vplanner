@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "dev:webpack": "next dev"
+    "dev:webpack": "next dev",
+    "postinstall": "node scripts/copy-vendor.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

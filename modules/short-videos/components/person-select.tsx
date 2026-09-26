@@ -5,18 +5,20 @@ import type { RoleId } from "@/lib/permissions/roles";
 import type { TeamPerson } from "../lib/queries";
 import { PersonAvatar } from "./person-chip";
 
-export type PersonKind = "editor" | "reviewer" | "scheduler";
+export type PersonKind = "editor" | "reviewer" | "scheduler" | "scripter";
 
 const ROLE_FOR: Record<PersonKind, RoleId[]> = {
   editor: ["editor", "master"], // masters can take on any job
   reviewer: ["master"],
   scheduler: ["publisher", "master"],
+  scripter: ["scripter", "master"],
 };
 
 const EMPTY: Record<PersonKind, string> = {
   editor: "No editor yet",
   reviewer: "Any master",
   scheduler: "Any scheduler",
+  scripter: "No default writer",
 };
 
 /** Build the option list for a role picker (shared with the table's editor cell). */
@@ -52,7 +54,9 @@ export function personOptions(kind: PersonKind, people: TeamPerson[], currentId:
           ? "Masters"
           : kind === "editor"
             ? p.roles.includes("editor") ? "Editors" : "Masters"
-            : p.roles.includes("publisher") ? "Schedulers" : "Masters"
+            : kind === "scripter"
+              ? p.roles.includes("scripter") ? "Scripters" : "Masters"
+              : p.roles.includes("publisher") ? "Schedulers" : "Masters"
       )
     ),
     ...others.map((p) => toOption(p, "Teammates")),

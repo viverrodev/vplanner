@@ -11,6 +11,7 @@ export const config = {
      * Match all routes except static files and images, so the auth
      * session gets refreshed on every navigation.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // vendor/ = public library files (e.g. the Word export), cacheable.
+    "/((?!_next/static|_next/image|favicon.ico|vendor/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

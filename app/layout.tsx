@@ -63,7 +63,8 @@ export default function RootLayout({
         <script
           // Runs before paint so dark mode doesn't flash light first.
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('vp-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+            // Also applies the user's "Animations off" choice before first paint.
+            __html: `try{if(localStorage.getItem('vp-theme')==='dark')document.documentElement.classList.add('dark');if(localStorage.getItem('vp-motion')==='off')document.documentElement.dataset.motion='off'}catch(e){}`,
           }}
         />
       </head>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { relativeTime } from "@/lib/relative-time";
 import { ArrowRightIcon, DocumentIcon } from "@/components/ui/icons";
 import { spokenLength } from "../lib/text";
+import { PersonAvatar } from "@/modules/short-videos/components/person-chip";
 import type { ScriptRow } from "../lib/queries";
 
 /** The script at a glance on a video's page, with a way into the editor. */
@@ -10,19 +11,21 @@ export function ScriptCard({
   script,
   canEdit,
   prominent,
+  writers = [],
 }: {
   href: string;
   script: ScriptRow | null;
   canEdit: boolean;
   /** Script stage: make it the obvious next thing. */
   prominent: boolean;
+  writers?: { memberId: string; name: string; avatarUrl: string | null; color: string }[];
 }) {
   const hasText = !!script && script.wordCount > 0;
   const preview = script?.text.replace(/\s+/g, " ").trim().slice(0, 220) ?? "";
 
   return (
     <section
-      className={`rounded-2xl bg-surface p-4 sm:p-5 ${prominent ? "border-2 border-amber" : "border border-line/10"}`}
+      className={`rounded-2xl bg-surface p-4 sm:p-5 ${prominent ? "border border-amber" : "border border-line/10"}`}
     >
       <div className="flex items-center justify-between gap-3 mb-2">
         <h2 className={`text-[11px] font-bold uppercase tracking-wide ${prominent ? "text-amber" : "text-ink-soft"}`}>Script</h2>
@@ -41,6 +44,22 @@ export function ScriptCard({
       ) : (
         <p className="text-[13.5px] text-ink-soft">{canEdit ? "Nothing written yet." : "No script written yet."}</p>
       )}
+
+      <div className="flex items-center gap-2 mt-3 text-[12px] text-ink-soft">
+        <span className="font-semibold">Writers</span>
+        {writers.length === 0 ? (
+          <span>None yet. Add them in Settings.</span>
+        ) : (
+          <span className="flex items-center gap-1.5 flex-wrap">
+            {writers.map((w) => (
+              <span key={w.memberId} className="inline-flex items-center gap-1">
+                <PersonAvatar name={w.name} avatarUrl={w.avatarUrl} color={w.color} className="w-5 h-5 text-[8.5px]" />
+                <span className="text-ink">{w.name}</span>
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
 
       <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
         {script?.updatedBy && hasText ? (

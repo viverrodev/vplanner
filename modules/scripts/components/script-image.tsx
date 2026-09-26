@@ -3,15 +3,25 @@
 import { useRef, useState } from "react";
 import Image from "@tiptap/extension-image";
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
+  ChevronDownIcon,
   DownloadIcon,
   ExpandIcon,
   TrashIcon,
 } from "@/components/ui/icons";
+
+function GripIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      {[7, 12, 17].flatMap((y) => [9, 15].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" />))}
+    </svg>
+  );
+}
 
 type Align = "left" | "center" | "right";
 
@@ -34,11 +44,37 @@ export async function downloadImage(src: string, name = "script-image") {
   }
 }
 
-function ImageView({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
+function ImageView({ node, updateAttributes, deleteNode, selected, editor, getPos }: ReactNodeViewProps) {
   const { src, alt, align, width } = node.attrs as { src: string; alt: string | null; align: Align; width: number | null };
   const [viewing, setViewing] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const editable = editor.isEditable;
+
+  /** Swap this image with the block above (-1) or below (+1). */
+  function move(dir: -1 | 1) {
+    const from = typeof getPos === "function" ? getPos() : undefined;
+    if (typeof from !== "number") return;
+    const { state, view } = editor;
+    const $pos = state.doc.resolve(from);
+    const parent = $pos.parent;
+    const index = $pos.index();
+    const neighbour = parent.maybeChild(index + dir);
+    if (!neighbour) return;
+    const size = node.nodeSize;
+    const tr = state.tr.delete(from, from + size);
+    const target = dir < 0 ? from - neighbour.nodeSize : from + neighbour.nodeSize;
+    tr.insert(target, node);
+    tr.setSelection(NodeSelection.create(tr.doc, target));
+    view.dispatch(tr.scrollIntoView());
+    view.focus();
+  }
+
+  const index = (() => {
+    const from = typeof getPos === "function" ? getPos() : undefined;
+    if (typeof from !== "number") return { first: true, last: true };
+    const $pos = editor.state.doc.resolve(from);
+    return { first: $pos.index() === 0, last: $pos.index() === $pos.parent.childCount - 1 };
+  })();
 
   function startResize(e: React.PointerEvent) {
     e.preventDefault();
@@ -70,7 +106,6 @@ function ImageView({ node, updateAttributes, deleteNode, selected, editor }: Rea
     <NodeViewWrapper
       className="script-image my-4 flex"
       style={{ justifyContent: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center" }}
-      data-drag-handle
     >
       <div
         ref={boxRef}
@@ -91,12 +126,28 @@ function ImageView({ node, updateAttributes, deleteNode, selected, editor }: Rea
         {/* Toolbar: always for editors when selected; view/download on hover for readers. */}
         <div
           contentEditable={false}
-          className={`absolute left-1/2 -translate-x-1/2 top-2 z-10 flex items-center gap-0.5 rounded-lg bg-black/80 backdrop-blur px-1 py-1 shadow-lg transition-opacity ${
+          className={`absolute left-1/2 -translate-x-1/2 top-2 z-10 flex flex-nowrap max-w-[calc(100vw-2rem)] overflow-x-auto no-scrollbar items-center gap-0.5 rounded-lg bg-black/80 backdrop-blur px-1 py-1 shadow-lg transition-opacity ${
             selected && editable ? "opacity-100" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
           }`}
         >
           {editable && (
             <>
+              <span
+                data-drag-handle
+                draggable
+                title="Drag to move"
+                aria-label="Drag to move"
+                className={`${btn} cursor-grab active:cursor-grabbing`}
+              >
+                <GripIcon className="w-4 h-4" />
+              </span>
+              <button type="button" title="Move up" aria-label="Move image up" disabled={index.first} className={`${btn} disabled:opacity-30`} onClick={() => move(-1)}>
+                <ChevronDownIcon className="w-4 h-4 rotate-180" />
+              </button>
+              <button type="button" title="Move down" aria-label="Move image down" disabled={index.last} className={`${btn} disabled:opacity-30`} onClick={() => move(1)}>
+                <ChevronDownIcon className="w-4 h-4" />
+              </button>
+              <span className="w-px h-5 bg-white/20 mx-0.5" />
               {([
                 ["left", AlignLeftIcon, "Align left"],
                 ["center", AlignCenterIcon, "Center"],

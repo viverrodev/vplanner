@@ -1,30 +1,46 @@
 "use client";
 
-import {
-  AlignmentType,
-  Document,
-  ExternalHyperlink,
-  HeadingLevel,
-  ImageRun,
-  LevelFormat,
-  Packer,
-  Paragraph,
-  TextRun,
-  type IParagraphOptions,
-  type ParagraphChild,
-} from "docx";
+import type * as DocxLib from "docx";
+import type { IParagraphOptions, ParagraphChild, Paragraph as ParagraphT } from "docx";
+
+type Docx = typeof DocxLib;
+
+/**
+ * The Word library is loaded from /vendor/docx.iife.js (copied there on
+ * npm install) instead of being bundled: Turbopack's dev bundler breaks
+ * on its code. Loaded once, only when someone exports.
+ */
+let loading: Promise<Docx> | null = null;
+function loadDocx(): Promise<Docx> {
+  const w = window as unknown as { docx?: Docx };
+  if (w.docx) return Promise.resolve(w.docx);
+  loading ??= new Promise<Docx>((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "/vendor/docx.iife.js";
+    s.async = true;
+    s.onload = () => (w.docx ? resolve(w.docx) : reject(new Error("Word export library didn't load")));
+    s.onerror = () => {
+      loading = null;
+      reject(new Error("Couldn't load the Word export library"));
+    };
+    document.head.appendChild(s);
+  });
+  return loading;
+}
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 type Node = { type: string; attrs?: Record<string, unknown>; content?: Node[]; text?: string; marks?: Mark[] };
 
 const PAGE_WIDTH_PX = 600; // usable width for images in the document
 
-const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
-  left: AlignmentType.LEFT,
-  center: AlignmentType.CENTER,
-  right: AlignmentType.RIGHT,
-  justify: AlignmentType.JUSTIFIED,
-};
+function alignMap(D: Docx): Record<string, (typeof D.AlignmentType)[keyof typeof D.AlignmentType]> {
+  return {
+    left: D.AlignmentType.LEFT,
+    center: D.AlignmentType.CENTER,
+    right: D.AlignmentType.RIGHT,
+    justify: D.AlignmentType.JUSTIFIED,
+  };
+}
 
 function hex(color: unknown) {
   if (typeof color !== "string") return "FDE68A";
@@ -32,7 +48,8 @@ function hex(color: unknown) {
   return m ? m[1].toUpperCase() : "FDE68A";
 }
 
-function runs(nodes: Node[] | undefined): ParagraphChild[] {
+function runs(D: Docx, nodes: Node[] | undefined): ParagraphChild[] {
+  const { TextRun, ExternalHyperlink } = D;
   const out: ParagraphChild[] = [];
   for (const n of nodes ?? []) {
     if (n.type === "hardBreak") {
@@ -76,8 +93,14 @@ async function imageData(src: string): Promise<{ data: ArrayBuffer; w: number; h
   }
 }
 
-async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" | "number"; level: number }; quote?: boolean } = {}): Promise<Paragraph[]> {
-  const out: Paragraph[] = [];
+async function blocks(
+  D: Docx,
+  nodes: Node[] | undefined,
+  ctx: { list?: { kind: "bullet" | "number"; level: number }; quote?: boolean } = {}
+): Promise<ParagraphT[]> {
+  const { Paragraph, TextRun, HeadingLevel, ImageRun, AlignmentType } = D;
+  const ALIGN = alignMap(D);
+  const out: ParagraphT[] = [];
   for (const n of nodes ?? []) {
     const align = ALIGN[(n.attrs?.textAlign as string) ?? ""];
     const base: Partial<IParagraphOptions> = {
@@ -89,7 +112,7 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
         out.push(
           new Paragraph({
             ...base,
-            children: runs(n.content),
+            children: runs(D, n.content),
             ...(ctx.list
               ? ctx.list.kind === "bullet"
                 ? { bullet: { level: ctx.list.level } }
@@ -105,7 +128,7 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
           new Paragraph({
             ...base,
             heading: level === 1 ? HeadingLevel.HEADING_1 : level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
-            children: runs(n.content),
+            children: runs(D, n.content),
             spacing: { before: 240, after: 120 },
           })
         );
@@ -115,7 +138,7 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
       case "orderedList":
         for (const item of n.content ?? []) {
           out.push(
-            ...(await blocks(item.content, {
+            ...(await blocks(D, item.content, {
               ...ctx,
               list: { kind: n.type === "bulletList" ? "bullet" : "number", level: ctx.list ? Math.min(ctx.list.level + 1, 5) : 0 },
             }))
@@ -128,15 +151,15 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
           const [first, ...rest] = item.content ?? [];
           out.push(
             new Paragraph({
-              children: [new TextRun({ text: checked ? "☑ " : "☐ " }), ...runs(first?.content)],
+              children: [new TextRun({ text: checked ? "☑ " : "☐ " }), ...runs(D, first?.content)],
               spacing: { after: 80 },
             })
           );
-          out.push(...(await blocks(rest, ctx)));
+          out.push(...(await blocks(D, rest, ctx)));
         }
         break;
       case "blockquote":
-        out.push(...(await blocks(n.content, { ...ctx, quote: true })));
+        out.push(...(await blocks(D, n.content, { ...ctx, quote: true })));
         break;
       case "horizontalRule":
         out.push(new Paragraph({ border: { bottom: { style: "single", size: 6, color: "CCCCCC", space: 4 } }, children: [] }));
@@ -158,7 +181,7 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
         break;
       }
       default:
-        if (n.content) out.push(...(await blocks(n.content, ctx)));
+        if (n.content) out.push(...(await blocks(D, n.content, ctx)));
     }
   }
   return out;
@@ -166,7 +189,9 @@ async function blocks(nodes: Node[] | undefined, ctx: { list?: { kind: "bullet" 
 
 /** Build and download a .docx of the script. */
 export async function exportScriptDocx(doc: Node, title: string, fileName: string) {
-  const body = await blocks(doc.content);
+  const D = await loadDocx();
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, LevelFormat, AlignmentType } = D;
+  const body = await blocks(D, doc.content);
   const document = new Document({
     title,
     numbering: {

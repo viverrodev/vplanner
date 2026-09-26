@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useEditor, EditorContent, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -42,6 +43,24 @@ import {
 import { ScriptImage } from "./script-image";
 import { countWords, EMPTY_DOC, SCRIPT_TEMPLATE, spokenLength } from "../lib/text";
 
+/**
+ * Where a block (like an image) can go near `pos`: right after the
+ * paragraph/list/quote it's in, or in place of an empty paragraph. Never
+ * inside a line of text (that's what caused "Inserted content deeper
+ * than insertion position").
+ */
+function blockRange(editor: Editor, pos?: number) {
+  const { doc, selection } = editor.state;
+  const at = typeof pos === "number" ? Math.min(Math.max(pos, 0), doc.content.size) : selection.from;
+  const $pos = doc.resolve(at);
+  if ($pos.depth === 0) return { from: at, to: at };
+  const top = $pos.node(1);
+  const start = $pos.before(1);
+  const end = $pos.after(1);
+  if (top.type.name === "paragraph" && top.content.size === 0) return { from: start, to: end };
+  return { from: end, to: end };
+}
+
 const HIGHLIGHTS = [
   { name: "Yellow", color: "#FDE68A" },
   { name: "Green", color: "#BBF7D0" },
@@ -52,6 +71,9 @@ const HIGHLIGHTS = [
 
 type Status = "saved" | "unsaved" | "saving" | "error" | "conflict";
 const PAPER_KEY = "vp:script-paper";
+const VIEW_KEY = "vp:script-view";
+/** A4 is 1 : √2. Page height follows the paper's width. */
+const A4_RATIO = 1123 / 794;
 
 type Json = { type: string; content?: Json[] };
 
@@ -102,6 +124,10 @@ export function ScriptEditor({
   const [status, setStatus] = useState<Status>("saved");
   const [words, setWords] = useState(0);
   const [paper, setPaper] = useState<"light" | "dark">("light");
+  const [view, setView] = useState<"strip" | "pages">("strip");
+  const paperRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageLayout, setPageLayout] = useState({ pageH: 1123, pages: 1 });
   const [uploading, setUploading] = useState(0);
 
   const versionRef = useRef(initialVersion);
@@ -118,6 +144,8 @@ export function ScriptEditor({
     try {
       const v = localStorage.getItem(PAPER_KEY);
       if (v === "light" || v === "dark") setPaper(v);
+      const w = localStorage.getItem(VIEW_KEY);
+      if (w === "strip" || w === "pages") setView(w);
     } catch {
       /* private mode: stay light */
     }
@@ -198,8 +226,7 @@ export function ScriptEditor({
           if (error) throw error;
           const { data } = supabase.storage.from("script-images").getPublicUrl(path);
           const node = { type: "image", attrs: { src: data.publicUrl, alt: original.name, align: "center", width: 60 } };
-          if (typeof pos === "number") editor.chain().focus().insertContentAt(pos, node).run();
-          else editor.chain().focus().insertContent(node).run();
+          editor.chain().focus().insertContentAt(blockRange(editor, pos), node).run();
         } catch {
           toast.error(`Couldn't upload ${original.name}.`);
         } finally {
@@ -295,6 +322,36 @@ export function ScriptEditor({
     };
   }, []);
 
+  // Pages view: work out how many A4 sheets the script fills.
+  useEffect(() => {
+    if (view !== "pages") return;
+    const paperEl = paperRef.current;
+    const contentEl = contentRef.current;
+    if (!paperEl || !contentEl) return;
+    const measure = () => {
+      const width = paperEl.getBoundingClientRect().width;
+      const pageH = Math.round(width * A4_RATIO);
+      const styles = getComputedStyle(paperEl);
+      const padding = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+      const needed = contentEl.getBoundingClientRect().height + padding;
+      setPageLayout({ pageH, pages: Math.max(1, Math.ceil(needed / pageH)) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(paperEl);
+    ro.observe(contentEl);
+    return () => ro.disconnect();
+  }, [view]);
+
+  function chooseView(v: "strip" | "pages") {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }
+
   function togglePaper() {
     const next = paper === "light" ? "dark" : "light";
     setPaper(next);
@@ -329,7 +386,27 @@ export function ScriptEditor({
         </div>
         <span className="hidden md:inline text-[12px] text-ink-soft tabular-nums">
           {words} words · about {spokenLength(words)}
+          {view === "pages" ? ` · ${pageLayout.pages} page${pageLayout.pages === 1 ? "" : "s"}` : ""}
         </span>
+        <div role="radiogroup" aria-label="View" className="hidden sm:flex items-center rounded-lg border border-line/15 p-0.5 flex-shrink-0">
+          {([
+            ["strip", "Strip"],
+            ["pages", "Pages"],
+          ] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={view === v}
+              onClick={() => chooseView(v)}
+              className={`px-2.5 h-7 rounded-md text-[12px] font-semibold transition-colors ${
+                view === v ? "bg-surface-2 text-ink" : "text-ink-soft hover:text-ink"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {canEdit ? (
           <span
             className={`hidden sm:inline-flex items-center gap-1.5 text-[12px] font-semibold ${
@@ -366,7 +443,7 @@ export function ScriptEditor({
 
       {status === "conflict" && (
         <div className="no-print mx-auto mt-4 w-full max-w-3xl px-4">
-          <div className="rounded-xl border-2 border-amber bg-amber/10 px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="rounded-xl border border-amber bg-amber/10 px-4 py-3 flex items-center gap-3 flex-wrap">
             <p className="text-[13.5px] text-ink flex-1 min-w-[200px]">
               Someone else saved this script while you were editing. Reload to see their version. Your last
               changes weren&rsquo;t saved, so copy anything you need first.
@@ -400,9 +477,29 @@ export function ScriptEditor({
       {/* Paper */}
       <div className="flex-1 px-3 sm:px-6 py-6 sm:py-10">
         <div
+          ref={paperRef}
           data-paper={paper}
-          className="script-paper script-print mx-auto w-full max-w-3xl rounded-2xl shadow-[0_10px_40px_-20px_rgb(0_0_0/0.35)] border border-line/10 px-5 sm:px-14 py-8 sm:py-14 transition-colors"
+          data-view={view}
+          style={view === "pages" ? { minHeight: pageLayout.pages * pageLayout.pageH } : undefined}
+          className={`script-paper script-print relative isolate mx-auto w-full border border-line/10 shadow-[0_10px_40px_-20px_rgb(0_0_0/0.35)] transition-colors ${
+            view === "pages"
+              ? "max-w-[794px] rounded-md px-6 sm:px-[72px] py-10 sm:py-[72px]"
+              : "max-w-3xl rounded-2xl px-5 sm:px-14 py-8 sm:py-14"
+          }`}
         >
+          {/* Pages view: where each A4 sheet ends. Drawn behind the text. */}
+          {view === "pages" &&
+            Array.from({ length: pageLayout.pages - 1 }, (_, i) => (
+              <div
+                key={i}
+                aria-hidden
+                className="no-print pointer-events-none absolute left-0 right-0 -z-10 flex items-center"
+                style={{ top: (i + 1) * pageLayout.pageH - 12, height: 24 }}
+              >
+                <div className="w-full h-3 bg-paper shadow-[inset_0_4px_6px_-4px_rgb(0_0_0/0.25),inset_0_-4px_6px_-4px_rgb(0_0_0/0.25)]" />
+                <span className="absolute right-3 -bottom-4 text-[10.5px] font-semibold script-soft">Page {i + 2}</span>
+              </div>
+            ))}
           <h1 className="print-only text-[22px] font-bold mb-6">
             #{number} {title}
           </h1>
@@ -419,7 +516,9 @@ export function ScriptEditor({
               </button>
             </div>
           )}
-          <EditorContent editor={editor} />
+          <div ref={contentRef}>
+            <EditorContent editor={editor} />
+          </div>
         </div>
         <p className="no-print mx-auto max-w-3xl mt-3 px-1 text-[11.5px] text-ink-soft md:hidden">
           {words} words · about {spokenLength(words)}
@@ -575,29 +674,56 @@ function Toolbar({ editor, onImage, uploading }: { editor: Editor; onImage: () =
   );
 }
 
-function usePopover() {
-  const [open, setOpen] = useState(false);
+/**
+ * Small popover anchored under a toolbar button. Rendered in a portal
+ * with fixed positioning, so the scrolling toolbar can't clip it.
+ */
+function usePopover(width = 220) {
+  const [open, setOpenState] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const btn = useRef<HTMLButtonElement>(null);
   const box = useRef<HTMLDivElement>(null);
+
+  const setOpen = useCallback(
+    (v: boolean | ((o: boolean) => boolean)) => {
+      setOpenState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v;
+        if (next) {
+          const r = btn.current?.getBoundingClientRect();
+          if (r) setPos({ top: r.bottom + 6, left: Math.min(Math.max(8, r.left), window.innerWidth - width - 8) });
+        }
+        return next;
+      });
+    },
+    [width]
+  );
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
       if (btn.current?.contains(t) || box.current?.contains(t)) return;
-      setOpen(false);
+      setOpenState(false);
     };
+    const onScroll = () => setOpenState(false);
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [open]);
-  return { open, setOpen, btn, box };
+
+  const style = { position: "fixed" as const, top: pos.top, left: pos.left, width };
+  return { open, setOpen, btn, box, style };
 }
 
 function HighlightMenu({ editor, active }: { editor: Editor; active: boolean }) {
-  const { open, setOpen, btn, box } = usePopover();
+  const { open, setOpen, btn, box, style } = usePopover(176);
   const close = useCallback(() => setOpen(false), [setOpen]);
   useMenuKeyboard(open, box, btn, close);
   return (
-    <div className="relative">
+    <div className="relative flex-shrink-0">
       <button
         ref={btn}
         type="button"
@@ -614,8 +740,8 @@ function HighlightMenu({ editor, active }: { editor: Editor; active: boolean }) 
         <HighlighterIcon className="w-4 h-4" />
         <ChevronDownIcon className="w-3 h-3" />
       </button>
-      {open && (
-        <div ref={box} role="menu" aria-label="Highlight color" className="absolute left-0 top-[calc(100%+4px)] z-30 w-44 rounded-xl border border-line/15 bg-surface shadow-xl p-1">
+      {open && createPortal(
+        <div ref={box} role="menu" aria-label="Highlight color" style={style} className="z-[140] rounded-xl border border-line/15 bg-surface shadow-xl p-1 animate-[modalin_.12s_ease]">
           {HIGHLIGHTS.map((h) => (
             <button
               key={h.color}
@@ -645,14 +771,15 @@ function HighlightMenu({ editor, active }: { editor: Editor; active: boolean }) 
             <span className="w-5 h-5 rounded-md border border-line/30" />
             No highlight
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
 function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
-  const { open, setOpen, btn, box } = usePopover();
+  const { open, setOpen, btn, box, style } = usePopover(288);
   const [url, setUrl] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -671,7 +798,7 @@ function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative flex-shrink-0">
       <button
         ref={btn}
         type="button"
@@ -686,8 +813,8 @@ function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
       >
         <LinkIcon className="w-4 h-4" />
       </button>
-      {open && (
-        <div ref={box} className="absolute left-0 top-[calc(100%+4px)] z-30 w-72 rounded-xl border border-line/15 bg-surface shadow-xl p-2">
+      {open && createPortal(
+        <div ref={box} style={style} className="z-[140] rounded-xl border border-line/15 bg-surface shadow-xl p-2 animate-[modalin_.12s_ease]">
           <input
             ref={inputRef}
             value={url}
@@ -707,14 +834,15 @@ function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
             className="w-full rounded-lg border border-line/15 bg-surface px-3 h-9 text-[13px] outline-none focus:ring-2 focus:ring-amber"
           />
           <p className="mt-1.5 px-1 text-[11px] text-ink-soft">Leave empty and press Enter to remove the link.</p>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
 function ExportMenu({ onDocx, onPdf }: { onDocx: () => void; onPdf: () => void }) {
-  const { open, setOpen, btn, box } = usePopover();
+  const { open, setOpen, btn, box } = usePopover(208);
   const close = useCallback(() => setOpen(false), [setOpen]);
   useMenuKeyboard(open, box, btn, close);
   return (

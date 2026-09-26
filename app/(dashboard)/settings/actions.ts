@@ -85,3 +85,15 @@ export async function updateTeamsVisibility(visible: boolean) {
   revalidatePath("/settings");
   return { success: true };
 }
+
+/** Turn the app's animations on or off for this account. */
+export async function setAnimations(enabled: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your session expired. Sign in again." };
+  const { error } = await supabase.from("profiles").update({ animations_enabled: !!enabled }).eq("id", user.id);
+  if (error) return { error: "Couldn't save that setting. Try again." };
+  return { success: true };
+}

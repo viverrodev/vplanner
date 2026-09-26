@@ -24,8 +24,8 @@ export default async function ShortScriptPage({ params }: { params: Promise<{ id
   const supabase = await createClient();
   const membership = await getMembership(supabase, short.teamId);
   const roles = membership?.roles ?? [];
-  // Masters and scripters write scripts, at any stage.
-  const canEdit = isMaster(roles) || roles.includes("scripter");
+  // Masters, plus this short's writers (default writer + anyone added).
+  const canEdit = isMaster(roles) || (!!membership && short.writerIds.includes(membership.teamMemberId));
 
   const script = await getOrCreateShortScript(id, canEdit);
 

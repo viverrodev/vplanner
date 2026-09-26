@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/ui/toast-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { GlobalSearch } from "@/components/search/global-search";
+import { MotionSync } from "@/components/ui/motion";
 import { displayName, colorForId } from "@/lib/avatar";
 import { signOut } from "./actions";
 import { NOTIFICATION_SELECT } from "@/lib/notification-select";
@@ -35,7 +36,7 @@ export default async function DashboardLayout({
   const [{ data: profile }, { teams, currentTeam }, { data: notifications }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("username, full_name, email, avatar_url")
+      .select("username, full_name, email, avatar_url, animations_enabled")
       .eq("id", user!.id)
       .single(),
     getTeamsAndCurrent(supabase),
@@ -61,6 +62,7 @@ export default async function DashboardLayout({
   return (
     <ToastProvider>
       <ConfirmProvider>
+        <MotionSync enabled={profile?.animations_enabled ?? true} />
         <div className="min-h-screen flex">
           <Sidebar
             teams={teams}

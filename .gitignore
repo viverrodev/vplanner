@@ -27,3 +27,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# personal scratch SQL (never a migration)
+supabase/scratch/
+
+# copied from node_modules by scripts/copy-vendor.mjs (postinstall)
+/public/vendor/

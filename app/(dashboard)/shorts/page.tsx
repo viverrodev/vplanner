@@ -112,6 +112,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       editorId: x.editor?.memberId ?? null,
       reviewerId: x.reviewer?.memberId ?? null,
       schedulerId: x.scheduler?.memberId ?? null,
+      writerIds: x.writerIds,
     },
     ctx: settingsCtx,
   });
@@ -387,12 +388,12 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
           ) : null}
         </div>
       ) : isTable ? (
-        <div className="rounded-xl border border-line/10 bg-surface overflow-hidden">
-          <div className="hidden md:grid md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_64px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_64px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
+        <div className="motion-stagger rounded-xl border border-line/10 bg-surface overflow-hidden">
+          <div className="hidden md:grid md:grid-cols-[40px_minmax(0,1fr)_120px_60px_64px] lg:grid-cols-[40px_minmax(0,1fr)_160px_120px_60px_64px] xl:grid-cols-[44px_minmax(0,1fr)_160px_120px_150px_64px] 2xl:grid-cols-[48px_minmax(0,1fr)_140px_160px_120px_150px_64px] gap-3 px-3 py-2 bg-surface-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-faint">
             <span className="text-right">#</span>
             <span>Title</span>
-            <span className="hidden xl:block">Planned</span>
-            <span>Editor</span>
+            <span className="hidden 2xl:block">Planned</span>
+            <span className="hidden lg:block">Editor</span>
             <span>Status</span>
             <span>Posted</span>
             <span></span>
@@ -422,7 +423,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                         limit={0}
                         isException
                         teamDefault={settings.perDay}
-                        canEdit={master}
+                        canEdit={master || canPost}
                       />
                     </div>
                   ))}
@@ -446,7 +447,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                           limit={capacityFor(s.plannedDate)}
                           isException={s.plannedDate in dayLimits}
                           teamDefault={settings.perDay}
-                          canEdit={master && s.plannedDate >= today}
+                          canEdit={(master || canPost) && s.plannedDate >= today}
                           dayShorts={shorts
                             .filter((x) => x.plannedDate === s.plannedDate)
                             .map((x) => ({
@@ -462,8 +463,18 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   </div>
                 )}
               <div
-                className="relative grid grid-cols-[36px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(160px,1fr)_170px_130px_140px_64px] xl:grid-cols-[48px_minmax(220px,1fr)_150px_170px_130px_150px_64px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
-              >
+                className="relative grid grid-cols-[36px_minmax(0,1fr)_auto] md:grid-cols-[40px_minmax(0,1fr)_120px_60px_64px] lg:grid-cols-[40px_minmax(0,1fr)_160px_120px_60px_64px] xl:grid-cols-[44px_minmax(0,1fr)_160px_120px_150px_64px] 2xl:grid-cols-[48px_minmax(0,1fr)_140px_160px_120px_150px_64px] gap-x-3 gap-y-1 px-3 py-2.5 items-center border-t border-line/5 hover:bg-surface-2/70 transition-colors"
+              
+                style={
+                  SHORT_TYPE_META[s.shortType].color
+                    ? {
+                        // Sponsor / Big: a colored left edge and a soft tint, plus the S / B badge on the right.
+                        boxShadow: `inset 4px 0 0 ${SHORT_TYPE_META[s.shortType].color}`,
+                        background: `linear-gradient(90deg, color-mix(in srgb, ${SHORT_TYPE_META[s.shortType].color} 14%, transparent), color-mix(in srgb, ${SHORT_TYPE_META[s.shortType].color} 4%, transparent) 60%)`,
+                      }
+                    : undefined
+                }
+>
                 <span className="text-right font-mono text-[12px] text-ink-faint tabular-nums self-start md:self-center pt-0.5 md:pt-0">
                   {s.number}
                 </span>
@@ -482,17 +493,17 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                       <ShortStagePill stage={s.stage} />
                     </span>
                     {s.plannedDate && (
-                      <span className={`xl:hidden ${overdue ? "text-red font-semibold" : ""}`}>
+                      <span className={`2xl:hidden ${overdue ? "text-red font-semibold" : ""}`}>
                         <span className="md:hidden">{formatShortDate(s.plannedDate)} · </span>
                         {s.scheduleMode === "auto" ? "Auto" : s.pinKind === "oneoff" ? "One-off" : "Fixed"}
                         {overdue ? " · overdue" : ""}
                       </span>
                     )}
-                    {s.editor && <span className="md:hidden truncate">· {s.editor.name}</span>}
+                    {s.editor && <span className="lg:hidden truncate">· {s.editor.name}</span>}
                   </div>
                 </div>
 
-                <div className="hidden xl:block text-[12px]">
+                <div className="hidden 2xl:block text-[12px]">
                   {s.plannedDate ? (
                     <>
                       <div className={`font-semibold ${overdue ? "text-red" : "text-ink"}`}>
@@ -521,7 +532,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                   )}
                 </div>
 
-                <div className="hidden md:flex items-center min-w-0">
+                <div className="hidden lg:flex items-center min-w-0">
                   <EditorCell id={s.id} number={s.number} current={s.editor} editors={editors} canChange={master} />
                 </div>
 
@@ -535,12 +546,12 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
 
                 <div className="relative z-10 justify-self-end md:justify-self-start flex flex-col items-end md:items-start gap-1">
                   <div className="flex items-center gap-1">
-                    <span className="hidden md:inline-flex">
+                    <span className="hidden xl:inline-flex">
                       <PostedToggles shortId={s.id} platforms={s.platforms} posted={s.postedPlatforms} canToggle={canToggle} />
                     </span>
-                    {/* Phones: just the count; tick platforms on the short's page. */}
+                    {/* Smaller screens: just the count; tick platforms on the short's page. */}
                     <span
-                      className={`md:hidden text-[11.5px] font-bold tabular-nums rounded-full px-2 py-0.5 ${
+                      className={`xl:hidden text-[11.5px] font-bold tabular-nums rounded-full px-2 py-0.5 ${
                         s.postedPlatforms.length >= s.platforms.length
                           ? "bg-green/15 text-green"
                           : s.postedPlatforms.length
@@ -553,7 +564,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                     <span className="md:hidden flex items-center gap-1">
                       <ShortTypeBadge type={s.shortType} />
                       {(master || canPost) && (
-                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} settings={settingsFor(s)} />
+                        <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} canReorder={master || canPost} settings={settingsFor(s)} />
                       )}
                     </span>
                   </div>
@@ -566,7 +577,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
                 <div className="hidden md:flex items-center justify-end gap-1.5">
                   <ShortTypeBadge type={s.shortType} />
                   {(master || canPost) && (
-                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} settings={settingsFor(s)} />
+                    <ShortRowMenu id={s.id} number={s.number} title={s.title} pinned={s.scheduleMode === "pinned"} pinKind={s.pinKind} locked={locked} queueStart={queueStart} isMaster={master} canReorder={master || canPost} settings={settingsFor(s)} />
                   )}
                 </div>
               </div>
@@ -575,7 +586,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="motion-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {shorts.map((s) => {
             const { canToggle, canMarkDone } = rowProps(s);
             const overdue = isOverdue(s.plannedDate, s.stage);

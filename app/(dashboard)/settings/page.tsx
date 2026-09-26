@@ -1,3 +1,4 @@
+import { AnimationsToggle } from "@/components/ui/motion";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/get-user";
@@ -21,7 +22,7 @@ export default async function SettingsPage() {
   const [{ data: profile }, { data: memberships }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("username, full_name, email, bio, avatar_url, teams_visible")
+      .select("username, full_name, email, bio, avatar_url, teams_visible, animations_enabled")
       .eq("id", user!.id)
       .single(),
     supabase
@@ -128,6 +129,13 @@ export default async function SettingsPage() {
             <div className="text-[11.5px] text-ink-faint">Switch between light and dark mode</div>
           </div>
           <ThemeToggle />
+        </div>
+        <div className="flex items-center justify-between gap-4 mt-5 pt-5 border-t border-line/10">
+          <div>
+            <div className="text-[13.5px] font-semibold">Animations</div>
+            <div className="text-[11.5px] text-ink-faint">Soft motion when pages, lists and popups open. Saved to your account.</div>
+          </div>
+          <AnimationsToggle enabled={profile?.animations_enabled ?? true} />
         </div>
       </section>
 

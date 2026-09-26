@@ -58,7 +58,8 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
   });
 
   const [people, planned, settings, limits, queueStart, script] = await Promise.all([
-    perms.canAssignPeople ? listTeamPeople(short.teamId) : Promise.resolve([]),
+    // Everyone sees the writers' names; masters/schedulers also pick people.
+    listTeamPeople(short.teamId),
     perms.canEditBasics ? listPlannedDates(short.teamId) : Promise.resolve([]),
     getShortSettings(short.teamId),
     perms.canEditBasics ? listDayLimits(short.teamId) : Promise.resolve({}),
@@ -85,6 +86,7 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
     editorId: short.editor?.memberId ?? null,
     reviewerId: short.reviewer?.memberId ?? null,
     schedulerId: short.scheduler?.memberId ?? null,
+    writerIds: short.writerIds,
   };
   const lastChanges = short.events.find((e) => e.kind === "stage" && e.fromStage === "review" && e.toStage === "editing") ?? null;
   const overdue = isOverdue(short.plannedDate, short.stage);
@@ -193,8 +195,10 @@ export default async function ShortPage({ params }: { params: Promise<{ id: stri
           <ScriptCard
             href={`/shorts/${short.id}/script`}
             script={script}
-            canEdit={perms.isMaster || roles.includes("scripter")}
+            // Masters, plus this short's writers.
+            canEdit={perms.isMaster || (!!membership && short.writerIds.includes(membership.teamMemberId))}
             prominent={short.stage === "script"}
+            writers={people.filter((p) => short.writerIds.includes(p.memberId))}
           />
 
           {(short.stage === "editing" || short.stage === "ready" || short.stage === "posted") && (

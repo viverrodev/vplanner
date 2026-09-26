@@ -6,7 +6,11 @@ import { useAction } from "@/lib/hooks/use-action";
 import { Dialog } from "@/components/ui/dialog";
 import { PLATFORM_META, type Platform, type ShortType } from "../lib/constants";
 import type { DatedShort, TeamPerson } from "../lib/queries";
-import { assignShortPerson } from "@/app/(dashboard)/shorts/actions";
+import { assignShortPerson, setShortWriter } from "@/app/(dashboard)/shorts/actions";
+import { Select } from "@/components/ui/select";
+import { CloseIcon } from "@/components/ui/icons";
+import { PersonAvatar } from "./person-chip";
+import { personOptions } from "./person-select";
 import { PersonSelect, type PersonKind } from "./person-select";
 import { FinalFileField } from "./final-file-field";
 import { formatShortDate } from "../lib/dates";
@@ -30,6 +34,7 @@ export type ShortSettingsData = {
   editorId: string | null;
   reviewerId: string | null;
   schedulerId: string | null;
+  writerIds: string[];
 };
 
 export type ShortSettingsContext = {
@@ -78,6 +83,7 @@ export function ShortSettingsDialog({
   const [capOn, setCapOn] = useState(short.captionEnabled);
   const [cap, setCap] = useState(short.caption ?? "");
   const [who, setWho] = useState({ editor: short.editorId, reviewer: short.reviewerId, scheduler: short.schedulerId });
+  const [writers, setWriters] = useState<string[]>(short.writerIds);
 
   // Fresh values each time it opens (or when the server changes them).
   useEffect(() => {
@@ -88,14 +94,24 @@ export function ShortSettingsDialog({
     setCapOn(short.captionEnabled);
     setCap(short.caption ?? "");
     setWho({ editor: short.editorId, reviewer: short.reviewerId, scheduler: short.schedulerId });
-  }, [open, short.editorId, short.reviewerId, short.schedulerId, short.plannedDate, short.scheduleMode, short.pinKind, short.shortType, short.platforms, short.captionEnabled, short.caption]); // eslint-disable-line react-hooks/exhaustive-deps
+    setWriters(short.writerIds);
+  }, [open, short.writerIds.join(","), short.editorId, short.reviewerId, short.schedulerId, short.plannedDate, short.scheduleMode, short.pinKind, short.shortType, short.platforms, short.captionEnabled, short.caption]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useAction(updateShortDetails, { success: "Saved" });
   const assign = useAction(assignShortPerson, {
     success: (_id, role, m) => (m ? `${role[0].toUpperCase()}${role.slice(1)} set. They've been notified.` : `${role[0].toUpperCase()}${role.slice(1)} cleared.`),
     onError: () => setWho({ editor: short.editorId, reviewer: short.reviewerId, scheduler: short.schedulerId }),
   });
-  function setPerson(kind: PersonKind, memberId: string | null) {
+  const writer = useAction(setShortWriter, {
+    success: (_id, _m, add) => (add ? "Writer added. They've been notified." : "Writer removed."),
+    onError: () => setWriters(short.writerIds),
+  });
+  function toggleWriter(memberId: string, add: boolean) {
+    setWriters((w) => (add ? [...w.filter((x) => x !== memberId), memberId] : w.filter((x) => x !== memberId)));
+    writer.run(short.id, memberId, add);
+  }
+
+  function setPerson(kind: Exclude<PersonKind, "scripter">, memberId: string | null) {
     setWho((w) => ({ ...w, [kind]: memberId }));
     assign.run(short.id, kind, memberId);
   }
@@ -137,6 +153,38 @@ export function ShortSettingsDialog({
               <PersonSelect kind={kind} people={ctx.people} value={who[kind]} onChange={(m) => setPerson(kind, m)} />
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section label="Writers">
+        <p className="text-[12px] text-ink-soft mb-2.5">Only these people (and masters) can edit the script.</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {writers.map((id) => {
+            const p = ctx.people.find((x) => x.memberId === id);
+            if (!p) return null;
+            return (
+              <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-line/15 bg-surface-2 pl-1 pr-1 h-8">
+                <PersonAvatar name={p.name} avatarUrl={p.avatarUrl} color={p.color} />
+                <span className="text-[13px] font-semibold">{p.name}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleWriter(id, false)}
+                  aria-label={`Remove ${p.name} as a writer`}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface"
+                >
+                  <CloseIcon className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          <Select
+            variant="pill"
+            value={null}
+            onChange={(m) => m && toggleWriter(m, true)}
+            options={personOptions("scripter", ctx.people, null).filter((o) => !writers.includes(o.value))}
+            renderValue={() => <span>+ Add writer</span>}
+            ariaLabel="Add a writer"
+          />
         </div>
       </Section>
 

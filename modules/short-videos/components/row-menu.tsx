@@ -24,6 +24,7 @@ export function ShortRowMenu({
   locked,
   queueStart = null,
   isMaster = true,
+  canReorder = isMaster,
   settings,
 }: {
   id: string;
@@ -35,6 +36,8 @@ export function ShortRowMenu({
   queueStart?: { id: string; number: number; date: string } | null;
   /** Schedulers get Open + Edit settings; moving and deleting stay master-only. */
   isMaster?: boolean;
+  /** Masters and schedulers can move shorts up and down. */
+  canReorder?: boolean;
   settings?: { short: ShortSettingsData; ctx: ShortSettingsContext };
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -150,7 +153,7 @@ export function ShortRowMenu({
                 Edit
               </button>
             )}
-            {isMaster && (
+            {canReorder && (
             <>
             <div className="my-1 h-px bg-line/10" />
             <button
@@ -177,6 +180,10 @@ export function ShortRowMenu({
             >
               Move down one slot
             </button>
+            </>
+            )}
+            {isMaster && (
+            <>
             {pinned && !locked && (
               <>
                 <div className="my-1 h-px bg-line/10" />

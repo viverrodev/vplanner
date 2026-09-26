@@ -675,3 +675,39 @@ export async function setShortDayLimit(
   revalidatePath("/shorts");
   return {};
 }
+
+// ---------------------------------------------------------------------------
+// Writers (master / scheduler)
+// ---------------------------------------------------------------------------
+
+/** Add or remove someone who may write this short's script. */
+export async function setShortWriter(id: string, memberId: string, add: boolean): Promise<Result> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Your session expired. Sign in again." };
+
+  const short = await loadShort(supabase, id);
+  if (!short) return { error: "Short not found." };
+
+  if (add) {
+    const { error } = await supabase.from("short_scripters").insert({ short_id: id, team_member_id: memberId });
+    if (error && error.code !== "23505") {
+      return { error: friendlyDbError(error, "Couldn't add the writer. Only the master or a scheduler can.") };
+    }
+    const recipient = await editorUserId(supabase, memberId);
+    const actor = await actorMeta(supabase, user.id);
+    await notifyMany([recipient], user.id, (recipient_id) => ({
+      recipient_id,
+      short_id: id,
+      kind: "short_role_assigned",
+      metadata: { actor, ...shortMeta(short), roleLabel: "writer", suffix: ". You can edit its script." },
+      body: `${actor.name} made you a writer on #${short.entry_number} "${short.title}".`,
+    }));
+  } else {
+    const { error } = await supabase.from("short_scripters").delete().eq("short_id", id).eq("team_member_id", memberId);
+    if (error) return { error: friendlyDbError(error, "Couldn't remove the writer. Only the master or a scheduler can.") };
+  }
+
+  revalidateShort(id);
+  return {};
+}
+
